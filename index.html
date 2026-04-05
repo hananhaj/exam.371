@@ -930,11 +930,44 @@
             const ans = student.answers || {};
             const comments = student.teacherComments || {};
             
-            // UI snippet for the score input to avoid repetition
-            const scoreInputHtml = `
-                <div class="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-gray-200">
-                    <label class="text-sm font-bold text-gray-600">ציון:</label>
-                    <input type="number" min="0" class="q-score border border-gray-300 rounded px-2 py-1 w-16 text-center focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
+            // --- Automated Grading & Rubric System (Visible to Teacher Only) ---
+            
+            // 1. Aggressive Essay Evaluation
+            let essayWords = ans['essay'] ? ans['essay'].trim().split(/[\s]+/).length : 0;
+            let essaySysScore = 0;
+            let essayFeedback = "";
+            if (essayWords === 0) {
+                essayFeedback = "לא נכתב חיבור כלל. ציון מוערך: 0 נקודות בכל המדדים.";
+                essaySysScore = 0;
+            } else if (essayWords < 40) {
+                essayFeedback = `החיבור קצר מאוד (${essayWords} מילים בלבד). חסר תוכן משמעותי ופיתוח הרעיון דל לחלוטין. המבנה אינו תקין וחסרות דוגמאות מבוססות. הערכה מחמירה: מומלץ להעניק לא יותר מ-5 עד 8 נקודות מתוך 25.`;
+                essaySysScore = 8;
+            } else if (essayWords < 80) {
+                essayFeedback = `החיבור קצר מהנדרש (בדרך כלל נדרשות 10-15 שורות, כ-100 מילים ומעלה). נספרו ${essayWords} מילים. פיתוח הרעיון ככל הנראה חלקי בלבד. הערכה מחמירה: מומלץ להוריד לפחות 10 נקודות על פיתוח ותוכן. הצעת ציון אוטומטית: 15/25.`;
+                essaySysScore = 15;
+            } else {
+                essayFeedback = `אורך תקין ומספק (${essayWords} מילים). באחריות המורה לבדוק בקפדנות עמידה במבנה פסקאות (פתיחה, גוף, סיום), תקינות לשונית וקיום שתי דוגמאות לפחות כנדרש במטלה.`;
+                essaySysScore = 20;
+            }
+
+            // 2. MCQ Check logic
+            const checkMCQ = (ansKey, correctStr) => (ans[ansKey] === correctStr ? 10 : 0);
+            const c1a = checkMCQ('1a', 'הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.');
+            const c1b = checkMCQ('1b', 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.');
+            const c4a = checkMCQ('4a', 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.');
+            const c10a = checkMCQ('10a', 'אבל') ? 2 : 0;
+            const c10b = checkMCQ('10b', 'כדי') ? 2 : 0;
+            const c10c = checkMCQ('10c', 'למרות זאת') ? 2 : 0;
+
+            // UI snippet for the score input with auto-grade suggestion
+            const scoreInputHtml = (suggested, max, expectedText = '') => `
+                <div class="flex flex-col items-end gap-1 mt-4 pt-3 border-t border-gray-200">
+                    ${expectedText ? `<div class="text-xs text-green-700 bg-green-50 px-2 py-1 rounded w-full text-right mb-1"><strong>תשובה מצופה למחוון:</strong> ${expectedText}</div>` : ''}
+                    ${suggested !== null ? `<div class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded w-full text-right mb-1"><i class="fas fa-robot ml-1"></i>הערכת מערכת: ${suggested} / ${max} נק'</div>` : ''}
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-bold text-gray-600">ציון מורה (${max} נק'):</label>
+                        <input type="number" min="0" max="${max}" class="q-score border border-gray-300 rounded px-2 py-1 w-16 text-center focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
+                    </div>
                 </div>
             `;
 
@@ -956,15 +989,15 @@
                         <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק א' - הבנת הנקרא</h3>
                             <div class="grid grid-cols-1 gap-4 text-gray-800">
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>${scoreInputHtml(c1a, 10, 'הערים המודרניות יוצרות לעיתים אחידות חיצונית...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>${scoreInputHtml(c1b, 10, 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 5, 'לדוגמה: הגבלת שעות הפעלת מכשירים רועשים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 5, 'לדוגמה: מנגנון הפיקוח מסורבל והעונשים לא משמעותיים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'הפעלה הדרגתית: תחילה אזהרה, אח"כ קנס, ולבסוף צעדים חמורים בהפרה חוזרת.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'גורם לרשויות לפעול בשקיפות ולפרסם מידע על הטיפול בתלונות.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'שאלה כיצד לדבר על הבעיות הופכת לחלק מהוויכוח; מציין שיש עמדות לכאן ולכאן ללא נקיטת עמדה חד משמעית.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>${scoreInputHtml(c4a, 10, 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'שייכת לה / שלה / של הרשות המקומית')}</div>
                                 
                                 <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
                                     <div>
@@ -982,11 +1015,11 @@
                                             </div>
                                         </div>
                                     </div>
-                                    ${scoreInputHtml}
+                                    ${scoreInputHtml(null, 10, 'לבדיקת המורה (2 מילים, פירוש נכון ומשפט הגיוני)')}
                                 </div>
                                 
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'התקנות מצמצמות פעילות רועשת. קנסות מרתיעים מפירים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'מוביל לדיכאון, חוסר שינה, תחושת חוסר אונים ויאוש מתמשך.')}</div>
                             </div>
                             
                             <!-- הערות מורה פרק א -->
@@ -1004,7 +1037,27 @@
                                     <strong>7. תוכן החיבור:</strong> 
                                     <div class="mt-4 text-blue-900 font-medium text-lg leading-loose whitespace-pre-wrap bg-white p-4 rounded border border-blue-100 min-h-[200px]">${ans['essay'] || 'התלמיד לא כתב חיבור.'}</div>
                                 </div>
-                                ${scoreInputHtml}
+                                
+                                <div class="mt-4 bg-red-50 border-l-4 border-red-500 p-3 rounded text-sm text-red-900">
+                                    <h4 class="font-bold mb-1"><i class="fas fa-robot ml-1"></i> הערכת מערכת חכמה לחיבור:</h4>
+                                    <p>${essayFeedback}</p>
+                                </div>
+
+                                <!-- Rubric System for Essay -->
+                                <div class="mt-6 bg-gray-100 border border-gray-300 rounded-lg p-4">
+                                    <h4 class="font-bold text-gray-800 mb-3"><i class="fas fa-tasks ml-2"></i>מחוון בדיקת חיבור מפורט (מתוך 25 נק'):</h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                        <div><label class="block text-xs font-bold text-gray-600 mb-1">תוכן (35%)<br>עד 8.75 נק'</label><input type="number" step="0.25" max="8.75" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
+                                        <div><label class="block text-xs font-bold text-gray-600 mb-1">פיתוח רעיון (30%)<br>עד 7.5 נק'</label><input type="number" step="0.25" max="7.5" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
+                                        <div><label class="block text-xs font-bold text-gray-600 mb-1">מבנה (15%)<br>עד 3.75 נק'</label><input type="number" step="0.25" max="3.75" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
+                                        <div><label class="block text-xs font-bold text-gray-600 mb-1">תחביר (5%)<br>עד 1.25 נק'</label><input type="number" step="0.25" max="1.25" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
+                                        <div><label class="block text-xs font-bold text-gray-600 mb-1">לשון ואוצר מילים (15%)<br>עד 3.75 נק'</label><input type="number" step="0.25" max="3.75" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
+                                    </div>
+                                    <div class="mt-4 flex items-center justify-end gap-3 border-t border-gray-300 pt-3">
+                                        <span class="text-sm font-bold text-blue-900">ציון חיבור סופי שחושב:</span>
+                                        <input type="number" id="essay_final_score" class="q-score border border-blue-400 bg-blue-50 rounded px-2 py-1 w-20 text-center font-bold focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
+                                    </div>
+                                </div>
                             </div>
                             
                             <!-- הערות מורה פרק ב -->
@@ -1030,7 +1083,7 @@
                                             <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ה:</span> שורש: <span class="text-blue-800 font-bold">${ans['8e_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8e_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8e_fill']||'-'}</span></div>
                                         </div>
                                     </div>
-                                    ${scoreInputHtml}
+                                    ${scoreInputHtml(null, 15, 'א: דג"ש, הפעיל / ב: עו"ר, התפעל / ג: צב"ע, הופעל / ד: קב"ע, נפעל / ה: שמ"ש, פיעל')}
                                 </div>
                                 
                                 <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
@@ -1043,7 +1096,7 @@
                                             <div class="bg-white p-2 rounded border shadow-sm">מילה 4: <span class="text-blue-800 font-bold">${ans['9w4']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t4'])}</span></div>
                                         </div>
                                     </div>
-                                    ${scoreInputHtml}
+                                    ${scoreInputHtml(null, 4, 'אזהרה/הסלמה/התעלמות: שורש ומשקל | רשמית/מנגנון: בסיס וצורן | פלטפורמות: שאילה מלעז')}
                                 </div>
                                 
                                 <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
@@ -1055,7 +1108,7 @@
                                             <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> <span class="text-blue-800 font-bold">${ans['10c'] || 'לא נענה'}</span></div>
                                         </div>
                                     </div>
-                                    ${scoreInputHtml}
+                                    ${scoreInputHtml(c10a+c10b+c10c, 6, 'א: אבל (2 נק\') | ב: כדי (2 נק\') | ג: למרות זאת (2 נק\')')}
                                 </div>
                             </div>
 
@@ -1096,6 +1149,20 @@
         // --- Interaction & Event Handlers ---
         // Attached to window to work correctly with dynamic imports
         
+        window.calcEssayScore = function() {
+            const inputs = document.querySelectorAll('.rubric-input');
+            let total = 0;
+            inputs.forEach(input => {
+                const val = parseFloat(input.value);
+                if(!isNaN(val)) total += val;
+            });
+            const finalEssayEl = document.getElementById('essay_final_score');
+            if(finalEssayEl) {
+                finalEssayEl.value = total;
+                window.calcTotalScore(); // Trigger main calculation
+            }
+        };
+
         // Auto calculation function for the teacher dashboard
         window.calcTotalScore = function() {
             const scoreInputs = document.querySelectorAll('.q-score');
