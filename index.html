@@ -88,7 +88,7 @@
 
     <script>
         // --- Firebase Integration ---
-        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged;
+        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, docRef, updateDoc;
         let currentUser = null;
         window.firebaseLoaded = false;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'hebrew-exam-371';
@@ -124,6 +124,8 @@
                 addDoc = firestore.addDoc;
                 onSnapshot = firestore.onSnapshot;
                 serverTimestamp = firestore.serverTimestamp;
+                docRef = firestore.doc; // Needed for updating specific documents
+                updateDoc = firestore.updateDoc; // Needed for saving scores
                 signInAnonymously = authModule.signInAnonymously;
                 signInWithCustomToken = authModule.signInWithCustomToken;
                 onAuthStateChanged = authModule.onAuthStateChanged;
@@ -380,11 +382,6 @@
                 <p><strong>פסקה ד:</strong> העיר המודרנית מפעילה מנגנון אכיפה מורכב, שבמסגרתו פועלים פקחים, מהנדסים ויועצים משפטיים. מצד אחד, הרשות חייבת לאכוף את התקנות, לטפל בכל תלונה של תושב ולדאוג שלא יתפתחו אירועים קיצוניים. מצד אחר, ישנו חשש שהקצנה במדיניות האכיפה – למשל הטלת מאסר מהיר על בעלי עסקים או עימותים פיזיים עם תושבים – תוביל דווקא להסלמה ביחסים ביניהם ובין הרשות. כדי להימנע מכך מנסים ברשויות רבות ליישם מדיניות הדרגתית: תחילה משלחים אזהרה, אחר כך מוטל קנס, ורק במקרה של הפרה חוזרת ונשנית שוקלים צעדים חמורים יותר. למרבה הצער, לא כל הצדדים מוכנים לשתף פעולה, ולעיתים מתפתחים סכסוכים ארוכים.</p>
                 <p><strong>פסקה ה:</strong> בעידן הרשתות החברתיות מתפתחת תופעה חדשה: תושבים משתמשים בפלטפורמות מקוונות כדי לפרסם ביקורת על הרשות המקומית, לחשוף הדלפה של מסמכים פנימיים ולשתף סרטונים המתעדים סחרחורת של רעש וזיהום באזורים מסוימים. סרטונים אלו עשויים להרתיח את הציבור וליצור רושם שהמצב בעיר בלתי נסבל, גם אם בפועל מדובר במספר מצומצם של מיפגעים. במקרים מסוימים, עצם פרסום הסרטונים תורם להקצנה של עמדות: חלק מן התושבים מגבשים דעה קדומה שלפיה כל נציג ציבור מושחת או אדיש, ואחרים מתעלמים מכל שיפור שחל בשטח. יחד עם זאת, הודות ללחץ הציבורי ברשת, רשויות מסוימות החלו לפעול בשקיפות גבוהה יותר ולפרסם מידע ברור לגבי התלונות שהתקבלו והטיפול בהן.</p>
                 <p><strong>פסקה ו:</strong> הדיון הציבורי אינו מתמקד רק בנתונים, אלא גם בשפה שבה משתמשים הצדדים. כך, למשל, יש הבדל בין תיאור מפעל כגורם בוטה ל"זיהום אוויר מסוים", לבין הצגתו כ"סכנה בריאותית חמורה לתושבי האזור". בחירה במילים חריפות עשויה להיתפס כהגזמה או כהפלגה, אך לעיתים מילים אלו נועדו להחמיר בכוונה את התיאור כדי לעורר את הציבור לפעולה. יש תושבים הסבורים כי כדאי להימנע מהקצנה בשיח ולהעדיף טענה עניינית, מבוססת נתונים. אחרים מאמינים שבלי שפה חריפה לא יקשיבו להם. לפיכך, השאלה כיצד לדבר על הבעיות בעיר הופכת לחלק בלתי נפרד מן הוויכוח הציבורי על איכות החיים.</p>
-                
-                <div class="mt-8 p-4 bg-gray-100 rounded border-r-4 border-gray-400">
-                    <h4 class="font-bold mb-2">קטע נוסף (לשאלה 6): רמת רעש בעיר</h4>
-                    <p class="text-sm">בעיר מסוימת הותקן בשנים האחרונות מנגנון מדידה חדש, הבוחן את רמת הרעש ברחובות מרכזיים במשך כל שעות היממה. הנתונים הראו כי בשל עבודות תעשייה ליליות, תחבורה כבדה ומקומות בילוי, רמת הרעש בשכונות סמוכות עלתה בהרבה מעל הסף שנקבע בתקנות. בעקבות זאת הכריזה הרשות המקומית על מצב חירום זמני בשתי שכונות, הגבילה את פעילות העסקים בשעות מאוחרות והטילה קנסות על מי שהמשיך להפעיל ציוד רועש. חלק מן התושבים טענו שהצעדים הללו פוגעים בחופש העיסוק, ואחרים טענו שהרשות נמנעה במשך שנים מלטפל בבעיה, ולכן הצעדים כעת הם רק מינימום נדרש לשיפור המצב.</p>
-                </div>
             </div>
         `;
 
@@ -417,7 +414,7 @@
                                 
                                 <div class="bg-gray-50 p-4 rounded border">
                                     <h3 class="font-bold mb-3">2. א. על פי פסקה ג, ציינו: (10 נק')</h3>
-                                    ${generateTextarea('2a1', 'שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר את איכות החיים:')}
+                                    ${generateTextarea('2a1', 'שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר איכות חיים:')}
                                     ${generateTextarea('2a2', 'טענה אחת של חלק מן התושבים לגבי יישום התקנות בפועל:')}
                                 </div>
 
@@ -449,6 +446,11 @@
                                             ${generateInput('5s2', 'משפט חדש:')}
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="mt-8 p-5 bg-blue-50 rounded-lg border border-blue-200 shadow-sm text-right mb-6">
+                                    <h4 class="font-bold mb-2 text-blue-900">קטע נוסף (לשאלה 6): רמת רעש בעיר</h4>
+                                    <p class="text-sm leading-relaxed">בעיר מסוימת הותקן בשנים האחרונות מנגנון מדידה חדש, הבוחן את רמת הרעש ברחובות מרכזיים במשך כל שעות היממה. הנתונים הראו כי בשל עבודות תעשייה ליליות, תחבורה כבדה ומקומות בילוי, רמת הרעש בשכונות סמוכות עלתה בהרבה מעל הסף שנקבע בתקנות. בעקבות זאת הכריזה הרשות המקומית על מצב חירום זמני בשתי שכונות, הגבילה את פעילות העסקים בשעות מאוחרות והטילה קנסות על מי שהמשיך להפעיל ציוד רועש. חלק מן התושבים טענו שהצעדים הללו פוגעים בחופש העיסוק, ואחרים טענו שהרשות נמנעה במשך שנים מלטפל בבעיה, ולכן הצעדים כעת הם רק מינימום נדרש לשיפור המצב.</p>
                                 </div>
 
                                 ${generateTextarea('6a', '6. א. (על פי הקטע הנוסף ופסקה ג) הסבירו כיצד מסייעות התקנות והקנסות להתמודד עם בעיית הרעש? (10 נק\')')}
@@ -800,7 +802,7 @@
                         <td class="p-3 text-center">${statusBadge}</td>
                         <td class="p-3 text-center">${scoreDisplay}</td>
                         <td class="p-3 text-center">
-                            <button onclick="viewStudentExam('${s.id || s.studentId}')" class="text-blue-600 hover:text-blue-800" title="בדוק בחינה"><i class="fas fa-search"></i></button>
+                            <button onclick="viewStudentExam('${s.id || s.studentId}')" class="text-blue-600 hover:text-blue-800" title="בדוק בחינה"><i class="fas fa-search text-lg"></i></button>
                         </td>
                     </tr>
                 `;
@@ -881,7 +883,16 @@
         function getTeacherReviewHtml() {
             const student = state.currentReview;
             const ans = student.answers || {};
+            const comments = student.teacherComments || {};
             
+            // UI snippet for the score input to avoid repetition
+            const scoreInputHtml = `
+                <div class="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-gray-200">
+                    <label class="text-sm font-bold text-gray-600">ציון:</label>
+                    <input type="number" min="0" class="q-score border border-gray-300 rounded px-2 py-1 w-16 text-center focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
+                </div>
+            `;
+
             return `
                 <div class="max-w-5xl mx-auto w-full mt-4 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg mb-8">
                     <div class="flex justify-between items-center border-b pb-4 mb-6">
@@ -895,45 +906,66 @@
                     </div>
                     
                     <div class="space-y-8 text-right" dir="rtl">
+                        
                         <!-- Section 1 -->
                         <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק א' - הבנת הנקרא</h3>
-                            <div class="space-y-4 text-gray-800">
-                                <div class="p-3 bg-gray-50 rounded border"><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border">
-                                    <strong>5. פירוש מילים:</strong> 
-                                    <div class="mt-2 text-blue-800 font-medium grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div class="bg-blue-50 p-2 rounded border border-blue-100">
-                                            <span class="text-gray-600 text-sm">מילה 1:</span> ${ans['5w1']||'-'}<br>
-                                            <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m1']||'-'}<br>
-                                            <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s1']||'-'}
-                                        </div>
-                                        <div class="bg-blue-50 p-2 rounded border border-blue-100">
-                                            <span class="text-gray-600 text-sm">מילה 2:</span> ${ans['5w2']||'-'}<br>
-                                            <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m2']||'-'}<br>
-                                            <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s2']||'-'}
+                            <div class="grid grid-cols-1 gap-4 text-gray-800">
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
+                                    <div>
+                                        <strong>5. פירוש מילים:</strong> 
+                                        <div class="mt-2 text-blue-800 font-medium grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                                                <span class="text-gray-600 text-sm">מילה 1:</span> ${ans['5w1']||'-'}<br>
+                                                <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m1']||'-'}<br>
+                                                <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s1']||'-'}
+                                            </div>
+                                            <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                                                <span class="text-gray-600 text-sm">מילה 2:</span> ${ans['5w2']||'-'}<br>
+                                                <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m2']||'-'}<br>
+                                                <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s2']||'-'}
+                                            </div>
                                         </div>
                                     </div>
+                                    ${scoreInputHtml}
                                 </div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>
-                                <div class="p-3 bg-gray-50 rounded border"><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>
+                                
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>${scoreInputHtml}</div>
+                            </div>
+                            
+                            <!-- הערות מורה פרק א -->
+                            <div class="mt-6 border-t border-gray-200 pt-4">
+                                <label class="font-bold text-gray-700 block mb-2">הערות המורה לפרק א' - הבנת הנקרא:</label>
+                                <textarea id="comment_sec1" class="w-full border border-gray-300 rounded-lg p-3 focus:ring focus:ring-blue-200 outline-none" rows="2" placeholder="הקלד הערות כלליות לפרק זה...">${comments.sec1 || ''}</textarea>
                             </div>
                         </div>
 
                         <!-- Section 2 -->
                         <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק ב' - חיבור</h3>
-                            <div class="p-3 bg-gray-50 rounded border">
-                                <strong>7. תוכן החיבור:</strong> 
-                                <div class="mt-4 text-blue-900 font-medium text-lg leading-loose whitespace-pre-wrap bg-white p-4 rounded border border-blue-100 min-h-[200px]">${ans['essay'] || 'התלמיד לא כתב חיבור.'}</div>
+                            <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
+                                <div>
+                                    <strong>7. תוכן החיבור:</strong> 
+                                    <div class="mt-4 text-blue-900 font-medium text-lg leading-loose whitespace-pre-wrap bg-white p-4 rounded border border-blue-100 min-h-[200px]">${ans['essay'] || 'התלמיד לא כתב חיבור.'}</div>
+                                </div>
+                                ${scoreInputHtml}
+                            </div>
+                            
+                            <!-- הערות מורה פרק ב -->
+                            <div class="mt-6 border-t border-gray-200 pt-4">
+                                <label class="font-bold text-gray-700 block mb-2">הערות המורה לפרק ב' - חיבור:</label>
+                                <textarea id="comment_sec2" class="w-full border border-gray-300 rounded-lg p-3 focus:ring focus:ring-blue-200 outline-none" rows="2" placeholder="הקלד הערות על החיבור, סגנון, שפה וכו'...">${comments.sec2 || ''}</textarea>
                             </div>
                         </div>
 
@@ -941,35 +973,76 @@
                         <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק ג' - לשון</h3>
                             <div class="space-y-6 text-gray-800">
-                                <div class="p-3 bg-gray-50 rounded border">
-                                    <strong class="text-lg">8. הפועל:</strong>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> שורש: <span class="text-blue-800 font-bold">${ans['8a_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8a_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8a_fill']||'-'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> שורש: <span class="text-blue-800 font-bold">${ans['8b_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8b_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8b_fill']||'-'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> שורש: <span class="text-blue-800 font-bold">${ans['8c_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8c_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8c_fill']||'-'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ד:</span> שורש: <span class="text-blue-800 font-bold">${ans['8d_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8d_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8d_fill']||'-'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ה:</span> שורש: <span class="text-blue-800 font-bold">${ans['8e_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8e_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8e_fill']||'-'}</span></div>
+                                
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
+                                    <div>
+                                        <strong class="text-lg">8. הפועל:</strong>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> שורש: <span class="text-blue-800 font-bold">${ans['8a_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8a_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8a_fill']||'-'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> שורש: <span class="text-blue-800 font-bold">${ans['8b_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8b_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8b_fill']||'-'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> שורש: <span class="text-blue-800 font-bold">${ans['8c_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8c_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8c_fill']||'-'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ד:</span> שורש: <span class="text-blue-800 font-bold">${ans['8d_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8d_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8d_fill']||'-'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ה:</span> שורש: <span class="text-blue-800 font-bold">${ans['8e_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8e_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8e_fill']||'-'}</span></div>
+                                        </div>
                                     </div>
+                                    ${scoreInputHtml}
                                 </div>
-                                <div class="p-3 bg-gray-50 rounded border">
-                                    <strong class="text-lg">9. שם העצם (טבלה):</strong>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 1: <span class="text-blue-800 font-bold">${ans['9w1']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t1'])}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 2: <span class="text-blue-800 font-bold">${ans['9w2']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t2'])}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 3: <span class="text-blue-800 font-bold">${ans['9w3']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t3'])}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 4: <span class="text-blue-800 font-bold">${ans['9w4']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t4'])}</span></div>
+                                
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
+                                    <div>
+                                        <strong class="text-lg">9. שם העצם (טבלה):</strong>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 1: <span class="text-blue-800 font-bold">${ans['9w1']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t1'])}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 2: <span class="text-blue-800 font-bold">${ans['9w2']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t2'])}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 3: <span class="text-blue-800 font-bold">${ans['9w3']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t3'])}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 4: <span class="text-blue-800 font-bold">${ans['9w4']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t4'])}</span></div>
+                                        </div>
                                     </div>
+                                    ${scoreInputHtml}
                                 </div>
-                                <div class="p-3 bg-gray-50 rounded border">
-                                    <strong class="text-lg">10. מילות קישור:</strong>
-                                    <div class="mt-3 space-y-2">
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> <span class="text-blue-800 font-bold">${ans['10a'] || 'לא נענה'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> <span class="text-blue-800 font-bold">${ans['10b'] || 'לא נענה'}</span></div>
-                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> <span class="text-blue-800 font-bold">${ans['10c'] || 'לא נענה'}</span></div>
+                                
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
+                                    <div>
+                                        <strong class="text-lg">10. מילות קישור:</strong>
+                                        <div class="mt-3 space-y-2">
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> <span class="text-blue-800 font-bold">${ans['10a'] || 'לא נענה'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> <span class="text-blue-800 font-bold">${ans['10b'] || 'לא נענה'}</span></div>
+                                            <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> <span class="text-blue-800 font-bold">${ans['10c'] || 'לא נענה'}</span></div>
+                                        </div>
                                     </div>
+                                    ${scoreInputHtml}
                                 </div>
                             </div>
+
+                            <!-- הערות מורה פרק ג -->
+                            <div class="mt-6 border-t border-gray-200 pt-4">
+                                <label class="font-bold text-gray-700 block mb-2">הערות המורה לפרק ג' - לשון:</label>
+                                <textarea id="comment_sec3" class="w-full border border-gray-300 rounded-lg p-3 focus:ring focus:ring-blue-200 outline-none" rows="2" placeholder="הקלד הערות לפרק זה...">${comments.sec3 || ''}</textarea>
+                            </div>
                         </div>
+
+                        <!-- Final Grading Section -->
+                        <div class="bg-blue-50 p-8 rounded-lg border border-blue-200 shadow-md mt-8">
+                            <h3 class="text-2xl font-bold text-blue-900 mb-6 text-center border-b border-blue-200 pb-4">סיכום וציון סופי</h3>
+                            
+                            <div class="flex flex-col md:flex-row justify-center items-center gap-8 mb-8">
+                                <div class="flex items-center justify-between gap-3 bg-white p-4 rounded-lg shadow-sm border w-full md:w-auto">
+                                    <label class="font-bold text-lg text-gray-700">סך נקודות מחושב:</label>
+                                    <input type="number" id="final_calc_score" class="border bg-gray-100 rounded-lg p-2 w-24 text-center text-xl font-bold text-gray-600 outline-none" readonly value="${student.score || 0}">
+                                </div>
+                                <div class="flex items-center justify-between gap-3 bg-white p-4 rounded-lg shadow-sm border-2 border-green-300 w-full md:w-auto">
+                                    <label class="font-bold text-lg text-green-800">ציון סופי לשמירה:</label>
+                                    <input type="number" id="final_submit_score" class="border border-green-500 rounded-lg p-2 w-24 text-center text-2xl font-bold text-green-700 focus:ring focus:ring-green-200 outline-none" value="${student.score || 0}">
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button id="btn-save-review" onclick="window.saveTeacherReview('${student.id || student.studentId}')" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-12 rounded-full shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2 mx-auto text-xl">
+                                    <i class="fas fa-save"></i> שמור ציון והערות סופיות
+                                </button>
+                            </div>
+                        </div>
+                        
                     </div>
                 </div>
             `;
@@ -978,6 +1051,80 @@
         // --- Interaction & Event Handlers ---
         // Attached to window to work correctly with dynamic imports
         
+        // Auto calculation function for the teacher dashboard
+        window.calcTotalScore = function() {
+            const scoreInputs = document.querySelectorAll('.q-score');
+            let total = 0;
+            scoreInputs.forEach(input => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) total += val;
+            });
+            const calcScoreEl = document.getElementById('final_calc_score');
+            if (calcScoreEl) calcScoreEl.value = total;
+            
+            const submitScoreEl = document.getElementById('final_submit_score');
+            if (submitScoreEl) submitScoreEl.value = total;
+        };
+
+        window.saveTeacherReview = async function(docId) {
+            const finalScore = document.getElementById('final_submit_score').value;
+            const scoreVal = parseInt(finalScore) || 0;
+            
+            const comments = {
+                sec1: document.getElementById('comment_sec1').value,
+                sec2: document.getElementById('comment_sec2').value,
+                sec3: document.getElementById('comment_sec3').value
+            };
+
+            const btn = document.getElementById('btn-save-review');
+            if(btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> שומר...';
+                btn.disabled = true;
+            }
+
+            let saved = false;
+
+            // Try updating Firebase first
+            if (window.firebaseLoaded && currentUser) {
+                try {
+                    const existsInCloud = studentsData.find(s => s.id === docId);
+                    if (existsInCloud) {
+                        const studentDocRef = docRef(db, 'artifacts', appId, 'public', 'data', 'submissions', docId);
+                        await updateDoc(studentDocRef, {
+                            score: scoreVal,
+                            teacherComments: comments
+                        });
+                        saved = true;
+                    }
+                } catch(e) {
+                    console.error("Error updating score in Firebase:", e);
+                }
+            }
+            
+            // Update local storage backup (if present)
+            let localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+            let subIndex = localSubmissions.findIndex(s => s.id === docId || s.studentId === docId);
+            if (subIndex > -1) {
+                localSubmissions[subIndex].score = scoreVal;
+                localSubmissions[subIndex].teacherComments = comments;
+                localStorage.setItem('local_submissions', JSON.stringify(localSubmissions));
+                saved = true;
+            }
+
+            if (saved) {
+                window.showModal("הציון וההערות נשמרו בהצלחה!", false, () => {
+                    state.view = 'teacher_dash';
+                    render();
+                });
+            } else {
+                window.showModal("שגיאה: לא ניתן למצוא את המבחן לשמירה. נסה שוב מאוחר יותר.");
+                if(btn) {
+                    btn.innerHTML = '<i class="fas fa-save"></i> שמור ציון והערות סופיות';
+                    btn.disabled = false;
+                }
+            }
+        };
+
         window.saveAnswer = function(id, val) {
             if(state.view === 'exam') {
                 state.exam.answers[id] = val;
