@@ -88,7 +88,7 @@
 
     <script>
         // --- Firebase Integration ---
-        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, docRef, updateDoc;
+        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, docRef, updateDoc, getDocs;
         let currentUser = null;
         window.firebaseLoaded = false;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'hebrew-exam-371';
@@ -126,6 +126,7 @@
                 serverTimestamp = firestore.serverTimestamp;
                 docRef = firestore.doc; // Needed for updating specific documents
                 updateDoc = firestore.updateDoc; // Needed for saving scores
+                getDocs = firestore.getDocs; // Needed to check student existing submission
                 signInAnonymously = authModule.signInAnonymously;
                 signInWithCustomToken = authModule.signInWithCustomToken;
                 onAuthStateChanged = authModule.onAuthStateChanged;
@@ -226,7 +227,7 @@
         const TEACHER_UNLOCK_CODE = "014371";
 
         let state = {
-            view: 'login', // login, instructions, exam, summary, submitted, teacher_dash, teacher_review
+            view: 'login', // login, instructions, exam, summary, submitted, teacher_dash, teacher_review, student_results
             user: { role: null, name: '', id: '', classRoom: '', instCode: '', extraTime: false },
             exam: {
                 section: 1, // 1, 2, 3
@@ -255,6 +256,7 @@
                 case 'submitted': html = getSubmittedHtml(); break;
                 case 'teacher_dash': html = getTeacherDashHtml(); break;
                 case 'teacher_review': html = getTeacherReviewHtml(); break;
+                case 'student_results': html = getStudentResultsHtml(); break;
             }
 
             appDiv.innerHTML = html;
@@ -287,7 +289,7 @@
                         </div>
                     </div>
                 `;
-            } else if (state.view === 'teacher_dash' || state.view === 'teacher_review') {
+            } else if (state.view === 'teacher_dash' || state.view === 'teacher_review' || state.view === 'student_results') {
                 headerControls.innerHTML = `
                     <button id="btn-logout" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow transition">
                         <i class="fas fa-sign-out-alt ml-2"></i>יציאה
@@ -762,6 +764,49 @@
                     <h2 class="text-4xl font-bold text-gray-800 mb-4">הבחינה הוגשה בהצלחה!</h2>
                     <p class="text-xl text-gray-600 mb-8">תשובותיך נשמרו במערכת והועברו לבדיקת המורה.</p>
                     <p class="text-sm text-gray-400">ניתן לסגור חלון זה. להתראות!</p>
+                </div>
+            `;
+        }
+
+        function getStudentResultsHtml() {
+            const student = state.currentReview;
+            const comments = student.teacherComments || {};
+            const score = student.score || 0;
+
+            return `
+                <div class="max-w-4xl mx-auto w-full mt-10 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg">
+                    <div class="text-center border-b pb-6 mb-6">
+                        <div class="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-award text-4xl text-blue-600"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">תוצאות הבחינה</h2>
+                        <p class="text-xl text-gray-600">שלום, ${student.studentName}</p>
+                        <p class="text-sm text-gray-500 mt-1">ת.ז: ${student.studentId} | כיתה: ${student.classRoom}</p>
+                    </div>
+
+                    <div class="bg-green-50 border-2 border-green-200 rounded-xl p-6 text-center mb-8">
+                        <h3 class="text-xl font-bold text-green-800 mb-2">הציון הסופי שלך</h3>
+                        <div class="text-5xl font-black text-green-600">${score}</div>
+                    </div>
+
+                    <div class="space-y-6 text-right" dir="rtl">
+                        <h3 class="text-2xl font-bold text-blue-900 border-b border-blue-200 pb-2">הערות המורה:</h3>
+                        
+                        <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-book-open text-blue-500 ml-2"></i>פרק א' - הבנת הנקרא:</h4>
+                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec1 || 'אין הערות לפרק זה.'}</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-pen-nib text-blue-500 ml-2"></i>פרק ב' - חיבור:</h4>
+                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec2 || 'אין הערות לפרק זה.'}</p>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-language text-blue-500 ml-2"></i>פרק ג' - לשון:</h4>
+                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec3 || 'אין הערות לפרק זה.'}</p>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1300,17 +1345,67 @@
         function attachEventListeners() {
             const stuForm = document.getElementById('student-login-form');
             if (stuForm) {
-                stuForm.onsubmit = (e) => {
+                stuForm.onsubmit = async (e) => {
                     e.preventDefault();
+                    
+                    const stuId = document.getElementById('stu-id').value;
+                    
                     state.user = {
                         role: 'student',
                         name: document.getElementById('stu-name').value,
-                        id: document.getElementById('stu-id').value,
+                        id: stuId,
                         classRoom: document.getElementById('stu-class').value,
                         instCode: document.getElementById('stu-inst').value,
                         extraTime: document.getElementById('stu-extra').checked
                     };
-                    state.view = 'instructions';
+                    
+                    const btn = stuForm.querySelector('button[type="submit"]');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i> בודק נתונים...';
+                    btn.disabled = true;
+
+                    let existingSubmission = null;
+
+                    // Check Firebase for existing submission
+                    if (window.firebaseLoaded && currentUser) {
+                        try {
+                            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+                            const snapshot = await getDocs(colRef);
+                            snapshot.forEach(doc => {
+                                const data = doc.data();
+                                if (data.studentId === stuId) {
+                                    existingSubmission = { id: doc.id, ...data };
+                                }
+                            });
+                        } catch(e) {
+                            console.error(e);
+                        }
+                    }
+
+                    // Check Local Storage Backup
+                    if (!existingSubmission) {
+                        const localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+                        existingSubmission = localSubmissions.find(s => s.studentId === stuId);
+                    }
+
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+
+                    if (existingSubmission) {
+                        if (existingSubmission.score !== null && existingSubmission.score !== undefined) {
+                            // Graded! Show results.
+                            state.currentReview = existingSubmission;
+                            state.view = 'student_results';
+                        } else {
+                            // Submitted but not graded yet
+                            window.showModal('כבר הגשת את הבחינה. היא ממתינה כעת לבדיקת המורה.');
+                            return; // Stop and wait
+                        }
+                    } else {
+                        // First time taking the exam
+                        state.view = 'instructions';
+                    }
+                    
                     render();
                 };
             }
