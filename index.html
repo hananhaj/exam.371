@@ -239,10 +239,19 @@
                 timerInterval: null,
                 isLocked: false,
                 answers: JSON.parse(localStorage.getItem('exam_answers')) || {},
-                marked: JSON.parse(localStorage.getItem('exam_marked')) || {}
+                marked: JSON.parse(localStorage.getItem('exam_marked')) || {},
+                violations: JSON.parse(localStorage.getItem('exam_violations')) || [] // Track cheating
             },
             internalCopy: false,
             currentReview: null // Holds the student data being reviewed by the teacher
+        };
+
+        // Helper for logging anti-cheat violations
+        window.logViolation = function(reason) {
+            if (!state.exam.violations) state.exam.violations = [];
+            const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            state.exam.violations.push(`[${time}] ${reason}`);
+            localStorage.setItem('exam_violations', JSON.stringify(state.exam.violations));
         };
 
         // --- Core Application Logic ---
@@ -366,7 +375,7 @@
                             <li>יש לענות על כל השאלות בגוף השאלון במערכת.</li>
                             <li>ניתן לגרור מילים או להעתיק טקסט <strong>מתוך קטע הקריאה בלבד</strong>. אין להדביק טקסט ממקורות חיצוניים.</li>
                             <li>הקפידו על כתיב, פיסוק וכללי דקדוק.</li>
-                            <li><strong>הבחינה מתבצעת במסך מלא. יציאה ממסך מלא תנעל את המבחן ותדרוש התערבות מורה!</strong></li>
+                            <li><strong>הבחינה מתבצעת במסך מלא. יציאה ממסך מלא או מעבר חלון תנעל את המבחן ותתעד חריגה אצל המורה!</strong></li>
                         </ul>
                     </div>
 
@@ -672,10 +681,11 @@
         function getLockScreenHtml() {
             return `
                 <div class="lock-screen">
-                    <i class="fas fa-lock text-6xl text-red-500 mb-6 animate-pulse"></i>
-                    <h2 class="text-4xl font-bold mb-4">הבחינה ננעלה!</h2>
-                    <p class="text-xl mb-8">זוהתה יציאה ממסך מלא או פוקוס.</p>
-                    <p class="text-lg mb-4 text-yellow-300">קרא/י למורה להזנת קוד שחרור:</p>
+                    <i class="fas fa-user-shield text-6xl text-red-500 mb-6 animate-pulse"></i>
+                    <h2 class="text-4xl font-bold mb-4 text-red-500">חריגת אבטחה - הבחינה ננעלה!</h2>
+                    <p class="text-xl mb-2 text-center max-w-2xl">מערכת האבטחה זיהתה יציאה ממסך מלא, מעבר לחלון אחר או ניסיון צילום מסך.</p>
+                    <p class="text-lg mb-8 font-bold bg-red-900 bg-opacity-50 p-3 rounded text-center max-w-2xl">שים לב: פעולה זו אסורה בהחלט ותועדה במערכת של המורה.</p>
+                    <p class="text-lg mb-4 text-yellow-300">קרא/י למורה להזנת קוד שחרור כדי שתוכל/י להמשיך:</p>
                     <input type="password" id="unlock-code" class="text-black text-center text-2xl p-3 rounded-lg border-4 border-red-500 outline-none w-64 mb-4" placeholder="קוד מורה">
                     <button onclick="attemptUnlock()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition">שחרר נעילה</button>
                     <p id="unlock-error" class="text-red-400 mt-4 font-bold hidden">קוד שגוי!</p>
@@ -930,10 +940,13 @@
                     let color = s.score > 80 ? 'text-green-600' : (s.score > 60 ? 'text-yellow-600' : 'text-red-600');
                     scoreDisplay = `<span class="font-bold ${color}">${s.score}</span>`;
                 }
+                
+                let alertIcon = (s.violations && s.violations.length > 0) ? `<i class="fas fa-exclamation-triangle text-red-600 ml-2" title="חריגות משמעת!"></i>` : '';
+
                 return `
                     <tr class="border-b hover:bg-gray-50 transition">
                         <td class="p-3">${s.studentId || 'N/A'}</td>
-                        <td class="p-3 font-medium">${s.studentName || 'N/A'}</td>
+                        <td class="p-3 font-medium">${alertIcon}${s.studentName || 'N/A'}</td>
                         <td class="p-3">${s.classRoom || '-'}</td>
                         <td class="p-3 text-center">${statusBadge}</td>
                         <td class="p-3 text-center">${scoreDisplay}</td>
@@ -1072,6 +1085,18 @@
                 </div>
             `;
 
+            let violationsHtml = '';
+            if (student.violations && student.violations.length > 0) {
+                violationsHtml = `
+                    <div class="bg-red-50 border-2 border-red-500 rounded-lg p-4 mb-6 text-red-900">
+                        <h3 class="font-bold text-lg mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>חריגות משמעת ואבטחה תועדו:</h3>
+                        <ul class="list-disc list-inside space-y-1 text-sm font-medium">
+                            ${student.violations.map(v => `<li>${v}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
             return `
                 <div class="max-w-5xl mx-auto w-full mt-4 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg mb-8">
                     <div class="flex justify-between items-center border-b pb-4 mb-6">
@@ -1084,6 +1109,8 @@
                         </button>
                     </div>
                     
+                    ${violationsHtml}
+
                     <div class="space-y-8 text-right" dir="rtl">
                         
                         <!-- Section 1 -->
@@ -1421,6 +1448,7 @@
                         classRoom: state.user.classRoom,
                         instCode: state.user.instCode,
                         answers: state.exam.answers,
+                        violations: state.exam.violations || [],
                         timestamp: serverTimestamp(),
                         status: 'submitted',
                         score: null
@@ -1440,6 +1468,7 @@
                     studentName: state.user.name,
                     classRoom: state.user.classRoom,
                     answers: state.exam.answers,
+                    violations: state.exam.violations || [],
                     date: new Date().toISOString()
                 });
                 localStorage.setItem('local_submissions', JSON.stringify(localSubmissions));
@@ -1451,6 +1480,7 @@
             state.view = 'submitted';
             localStorage.removeItem('exam_answers');
             localStorage.removeItem('exam_marked');
+            localStorage.removeItem('exam_violations');
             render();
         };
 
@@ -1640,12 +1670,14 @@
 
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement && state.view === 'exam' && !state.exam.isLocked) {
+                window.logViolation('יציאה ממסך מלא (Fullscreen Exit)');
                 lockExam();
             }
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden' && state.view === 'exam' && !state.exam.isLocked) {
+                window.logViolation('מעבר לחלון או כרטיסייה אחרת (Tab/Window Blur)');
                 lockExam();
             }
         });
@@ -1666,8 +1698,9 @@
 
         document.addEventListener('keyup', (e) => {
             if (e.key === 'PrintScreen' && state.view === 'exam') {
+                window.logViolation('ניסיון צילום מסך (PrintScreen)');
                 navigator.clipboard.writeText('צילום מסך נחסם ע"י המערכת.');
-                window.showModal('צילום מסך חסום בבחינה.');
+                window.showModal('אסור לצלם מסך במהלך הבחינה! הפעולה תועדה ונשלחה למורה.');
             }
         });
 
