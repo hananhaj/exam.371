@@ -3,1153 +3,1252 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת בחינות - מקיף כאוכב</title>
+    <title>מבחן מקוון - עברית: הבנה, הבעה ולשון</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Rubik', sans-serif; }
-        .selectable-text { user-select: text; }
-        .unselectable { user-select: none; }
-        /* מניעת העתקה כללית למעט מקומות מורשים */
-        .prevent-copy { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
-        .allow-copy { -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text; }
         
-        /* גלילה מותאמת */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        body {
+            font-family: 'Rubik', sans-serif;
+            background-color: #f3f4f6;
+            user-select: none; /* Prevent general selection */
+        }
+
+        .selectable-text {
+            user-select: text; /* Allow selection only in specific areas like the text */
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Print blocking */
+        @media print {
+            body { display: none !important; }
+        }
+
+        .lock-screen {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 prevent-copy overflow-hidden h-screen w-screen flex flex-col">
+<body class="text-gray-800 overflow-x-hidden min-h-screen flex flex-col">
 
-    <div id="app" class="h-full w-full flex flex-col"></div>
-
-    <div id="modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 text-center">
-            <div id="modalIcon" class="text-4xl mb-4 text-red-600"><i class="fas fa-exclamation-triangle"></i></div>
-            <h2 id="modalTitle" class="text-2xl font-bold mb-2"></h2>
-            <p id="modalMessage" class="text-slate-700 text-lg mb-6"></p>
-            <button onclick="closeModal()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">הבנתי</button>
-        </div>
-    </div>
-
-<script>
-// ==========================================
-// מסד נתונים מקומי (לשמירת המבחנים בין רענונים)
-// ==========================================
-let submissions = JSON.parse(localStorage.getItem('exam_submissions')) || [];
-function saveSubmissions() {
-    localStorage.setItem('exam_submissions', JSON.stringify(submissions));
-}
-
-// ==========================================
-// מצב המערכת (State)
-// ==========================================
-let currentUser = null; 
-let currentView = 'login'; // login, instructions, exam, summary, teacher_dashboard, teacher_grading
-let currentExamStep = 'part1'; // part1, part2, part3
-let answers = {};
-let cheatLogs = [];
-let timeLeft = 0;
-let timerInterval = null;
-let selectedSubmissionId = null;
-
-// טקסטים קבועים
-const EXAM_TEXT = [
-  { id: 'A', text: 'בעשורים האחרונים הפכה העיר המודרנית למקום שבו חיים מיליוני אנשים בצפיפות גבוהה, ובו מתקיימים בו־זמנית תעשייה, מסחר, תרבות ופנאי. רשויות רבות מדגישות את חשיבות איכות החיים של התושבים, אך בפועל נוצרת לעיתים אחידות חיצונית בלבד – אותם קניונים, אותן שכונות ואותו מבנה רחובות – בלי תשומת לב מספקת לצרכים הייחודיים של כל קהילה. במקרים רבים פועלות בעיר רשויות מקומיות שונות, שלכל אחת מהן תקציב, סדרי עדיפויות ויכולת אכיפה משלה, ולכן לא פעם מתעוררות מחלוקות בין תושבים לבין הרשות באשר לאחריות על מיפגעי רעש, זיהום או עומסי תנועה.' },
-  { id: 'B', text: 'אחד הנושאים המרכזיים בדיון הציבורי הוא השאלה עד כמה העיר מצליחה ליצור תנאים התומכים בחֹסֶן נפשי של התושבים. מחקרים מצביעים על כך שחיים בסביבה רועשת, עמוסת תנועה ותעשייה, עלולים להגביר תחושות של לחץ ואף להוביל לדיכאון בקרב קבוצות מסוימות. תושבים אלה נחשבים לעיתים קבוצת סיכון, במיוחד כאשר הם נתקלים שוב ושוב בבעיות חוזרות – כמו כבישים מסוכנים, משאבת מים מקולקלת בבניין או דליפה חוזרת במערכת הביוב – בלי לקבל פתרון יעיל. במצבים כאלה מתפתחת אצל רבים תחושה של מודעות גבוהה לבעיה, אך גם ייאוש, והם מרגישים שהעיר מתעלמת מן הצרכים שלהם.' },
-  { id: 'C', text: 'במטרה להתמודד עם בעיות אלו, קובעת הרשות המקומית תקנות שונות שנועדו לצמצם נזק ולהסדיר את החיים המשותפים. תקנות אלה כוללות, למשל, הגבלת שעות המנוחה שבהן אסור להפעיל מכשירים רועשים, או קביעה של קנסות כבדים לבעלי עסקים שמפרים שוב ושוב את כללי הבטיחות. לעיתים מוחלט אף על מצב חירום נקודתי בשכונה מסוימת, בעקבות הסלמה ברמת הרעש או הזיהום. אלא שלא תמיד התקנות מיושמות באופן אפקטיבי; חלק מן התושבים טוענים שמנגנון הפיקוח מסורבל, שהעונשים במקרים רבים אינם עוברים ממינימום מסוים, ושהרשות נוטה לגלות סבלנות מופרזת כלפי גורמים פוגעניים.' },
-  { id: 'D', text: 'העיר המודרנית מפעילה מנגנון אכיפה מורכב, שבמסגרתו פועלים פקחים, מהנדסים ויועצים משפטיים. מצד אחד, הרשות חייבת לאכוף את התקנות, לטפל בכל תלונה של תושב ולדאוג שלא יתפתחו אירועים קיצוניים. מצד אחר, ישנו חשש שהקצנה במדיניות האכיפה – למשל הטלת מאסר מהיר על בעלי עסקים או עימותים פיזיים עם תושבים – תוביל דווקא להסלמה ביחסים ביניהם ובין הרשות. כדי להימנע מכך מנסים ברשויות רבות ליישם מדיניות הדרגתית: תחילה משלחים אזהרה, אחר כך מוטל קנס, ורק במקרה של הפרה חוזרת ונשנית שוקלים צעדים חמורים יותר. למרבה הצער, לא כל הצדדים מוכנים לשתף פעולה, ולעיתים מתפתחים סכסוכים ארוכים.' },
-  { id: 'E', text: 'בעידן הרשתות החברתיות מתפתחת תופעה חדשה: תושבים משתמשים בפלטפורמות מקוונות כדי לפרסם ביקורת על הרשות המקומית, לחשוף הדלפה של מסמכים פנימיים ולשתף סרטונים המתעדים סחרחורת של רעש וזיהום באזורים מסוימים. סרטונים אלו עשויים להרתיח את הציבור וליצור רושם שהמצב בעיר בלתי נסבל, גם אם בפועל מדובר במספר מצומצם של מיפגעים. במקרים מסוימים, עצם פרסום הסרטונים תורם להקצנה של עמדות: חלק מן התושבים מגבשים דעה קדומה שלפיה כל נציג ציבור מושחת או אדיש, ואחרים מתעלמים מכל שיפור שחל בשטח. יחד עם זאת, הודות ל־לחץ הציבורי ברשת, רשויות מסוימות החלו לפעול בשקיפות גבוהה יותר ולפרסם מידע ברור לגבי התלונות שהתקבלו והטיפול בהן.' },
-  { id: 'F', text: 'הדיון הציבורי אינו מתמקד רק בנתונים, אלא גם בשפה שבה משתמשים הצדדים. כך, למשל, יש הבדל בין תיאור מפעל כגורם בוטה ל“זיהום אוויר מסוים”, לבין הצגתו כ“סכנה בריאותית חמורה לתושבי האזור”. בחירה במילים חריפות עשויה להיתפס כהגזמה או כהפלגה, אך לעיתים מילים אלו נועדו להחמיר בכוונה את התיאור כדי לעורר את הציבור לפעולה. יש תושבים הסבורים כי כדאי להימנע מהקצנה בשיח ולהעדיף טענה עניינית, מבוססת נתונים. אחרים מאמינים שבלי שפה חריפה לא יקשיבו להם. לפיכך, השאלה כיצד לדבר על הבעיות בעיר הופכת לחלק בלתי נפרד מן הוויכוח הציבורי על איכות החיים.' }
-];
-const ADDED_TEXT = 'בעיר מסוימת הותקן בשנים האחרונות מנגנון מדידה חדש, הבוחן את רמת הרעש ברחובות מרכזיים במשך כל שעות היממה. הנתונים הראו כי בשל עבודות תעשייה ליליות, תחבורה כבדה ומקומות בילוי, רמת הרעש בשכונות סמוכות עלתה בהרבה מעל הסף שנקבע בתקנות. בעקבות זאת הכריזה הרשות המקומית על מצב חירום זמני בשתי שכונות, הגבילה את פעילות העסקים בשעות מאוחרות והטילה קנסות על מי שהמשיך להפעיל ציוד רועש. חלק מן התושבים טענו שהצעדים הללו פוגעים בחופש העיסוק, ואחרים טענו שהרשות נמנעה במשך שנים מלטפל בבעיה, ולכן הצעדים כעת הם רק מינימום נדרש לשיפור המצב.';
-
-// ==========================================
-// פונקציות ליבה לרינדור
-// ==========================================
-function render() {
-    const app = document.getElementById('app');
-    
-    if (!currentUser) {
-        app.innerHTML = getLoginHTML();
-        return;
-    }
-    
-    if (currentUser.role === 'teacher') {
-        if (currentView === 'teacher_dashboard') app.innerHTML = getTeacherDashboardHTML();
-        else if (currentView === 'teacher_grading') app.innerHTML = getTeacherGradingHTML();
-    } else {
-        if (currentView === 'instructions') app.innerHTML = getInstructionsHTML();
-        else if (currentView === 'exam') app.innerHTML = getExamHTML();
-        else if (currentView === 'summary') app.innerHTML = getSummaryHTML();
-    }
-}
-
-function showModal(title, message, isSuccess = false) {
-    document.getElementById('modalTitle').innerText = title;
-    document.getElementById('modalMessage').innerText = message;
-    document.getElementById('modalIcon').innerHTML = isSuccess ? '<i class="fas fa-check-circle text-green-500"></i>' : '<i class="fas fa-exclamation-triangle"></i>';
-    document.getElementById('modalIcon').className = isSuccess ? 'text-4xl mb-4 text-green-500' : 'text-4xl mb-4 text-red-600';
-    document.getElementById('modal').classList.remove('hidden');
-}
-
-function closeModal() {
-    document.getElementById('modal').classList.add('hidden');
-    if(currentView === 'summary' && !currentUser) { // After submit logout
-        render();
-    }
-}
-
-// ==========================================
-// פונקציות התחברות ומערכת
-// ==========================================
-let loginTab = 'student';
-function switchLoginTab(tab) {
-    loginTab = tab;
-    render();
-}
-
-function handleLogin(e) {
-    e.preventDefault();
-    const orgCode = document.getElementById('orgCode').value;
-    
-    if (loginTab === 'teacher') {
-        const pass = document.getElementById('password').value;
-        if (pass === '210286' && orgCode) {
-            currentUser = { role: 'teacher', orgCode, name: 'צוות הוראה' };
-            currentView = 'teacher_dashboard';
-            render();
-        } else {
-            showModal('שגיאה', 'סיסמה או סמל מוסד שגויים');
-        }
-    } else {
-        const id = document.getElementById('studentId').value;
-        const name = document.getElementById('studentName').value;
-        const extraTime = document.getElementById('extraTime') ? document.getElementById('extraTime').checked : false;
-        
-        if (id && name && orgCode) {
-            currentUser = { role: 'student', id, name, orgCode, extraTime };
-            currentView = 'instructions';
-            answers = {};
-            cheatLogs = [];
-            timeLeft = extraTime ? 10350 : 9000; // 172.5 mins or 150 mins
-            render();
-        }
-    }
-}
-
-function logout() {
-    currentUser = null;
-    currentView = 'login';
-    if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-    stopTimer();
-    render();
-}
-
-// ==========================================
-// מנגנוני מניעת רמאות וטיימר (תלמיד)
-// ==========================================
-function startExam() {
-    currentView = 'exam';
-    currentExamStep = 'part1';
-    
-    if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(err => console.log(err));
-    }
-    
-    startTimer();
-    setupAntiCheat();
-    render();
-}
-
-function setupAntiCheat() {
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('copy', handleCopyPaste);
-}
-
-function removeAntiCheat() {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    document.removeEventListener('copy', handleCopyPaste);
-}
-
-function handleVisibilityChange() {
-    if (document.hidden && currentView === 'exam') {
-        cheatLogs.push({ time: new Date().toISOString(), action: 'מעבר כרטיסייה / יציאה מהחלון' });
-        showModal('אזהרת מערכת!', 'זוהתה יציאה ממסך המבחן. הפעולה נרשמה במערכת וידווח למורה.');
-    }
-}
-
-function handleFullscreenChange() {
-    if (!document.fullscreenElement && currentView === 'exam') {
-        cheatLogs.push({ time: new Date().toISOString(), action: 'יציאה ממסך מלא' });
-        showModal('שים לב!', 'עליך להישאר במסך מלא במהלך כל הבחינה.');
-    }
-}
-
-function handleCopyPaste(e) {
-    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.closest('.allow-copy')) {
-        e.preventDefault();
-    }
-}
-
-function startTimer() {
-    timerInterval = setInterval(() => {
-        timeLeft--;
-        const timerEl = document.getElementById('timerDisplay');
-        if(timerEl) timerEl.innerText = formatTime(timeLeft);
-        
-        if(timeLeft <= 300 && timerEl) {
-            timerEl.classList.add('text-red-600', 'bg-red-100', 'animate-pulse');
-        }
-        
-        if (timeLeft <= 0) {
-            stopTimer();
-            submitExam(true);
-        }
-    }, 1000);
-}
-
-function stopTimer() {
-    if(timerInterval) clearInterval(timerInterval);
-}
-
-function formatTime(seconds) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-// ==========================================
-// ניהול המבחן והתשובות
-// ==========================================
-function updateAns(key, value) {
-    answers[key] = value;
-    const saveEl = document.getElementById('saveStatus');
-    if(saveEl) {
-        saveEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> שומר...';
-        saveEl.classList.replace('text-green-600', 'text-slate-400');
-        clearTimeout(window.saveTimeout);
-        window.saveTimeout = setTimeout(() => {
-            saveEl.innerHTML = '<i class="fas fa-check-circle"></i> נשמר';
-            saveEl.classList.replace('text-slate-400', 'text-green-600');
-        }, 1000);
-    }
-}
-
-function changeStep(step) {
-    if(step === 'summary') currentView = 'summary';
-    else {
-        currentView = 'exam';
-        currentExamStep = step;
-    }
-    render();
-}
-
-function submitExam(autoSubmit = false) {
-    const newSub = {
-        id: Date.now().toString(),
-        student: currentUser,
-        answers: answers,
-        cheatLogs: cheatLogs,
-        submittedAt: new Date().toISOString(),
-        graded: false,
-        finalScore: 0
-    };
-    
-    submissions.push(newSub);
-    saveSubmissions();
-    
-    stopTimer();
-    removeAntiCheat();
-    
-    if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-    
-    currentUser = null;
-    currentView = 'login';
-    
-    let msg = autoSubmit ? 'הזמן תם! המבחן הוגש אוטומטית למערכת.' : 'המבחן הוגש בהצלחה. תשובותיך נקלטו במערכת. אין אפשרות לצפות בציונים בשלב זה.';
-    showModal('סיום בחינה', msg, true);
-}
-
-// ==========================================
-// HTML Generators
-// ==========================================
-
-function getLoginHTML() {
-    return `
-    <div class="flex-1 flex items-center justify-center p-4">
-        <div class="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
-            <div class="bg-blue-800 p-6 text-center text-white">
-                <h1 class="text-2xl font-bold mb-2">בית ספר מקיף כאוכב אבו אלהיא</h1>
-                <p class="text-blue-200 text-lg">מערכת בחינות מקוונת</p>
-                <div class="mt-3 py-1 px-3 bg-blue-900/50 rounded-full inline-block">
-                    <p class="text-blue-100 text-sm font-medium"><i class="fas fa-pen-nib ml-1"></i> הכינה המורה חנאן חאג' מוחמד</p>
-                </div>
-            </div>
-            
-            <div class="flex border-b border-slate-200">
-                <button onclick="switchLoginTab('student')" class="flex-1 py-4 text-center font-medium transition-colors ${loginTab === 'student' ? 'text-blue-800 border-b-2 border-blue-800 bg-blue-50/50' : 'text-slate-500 hover:text-slate-700'}">
-                    <i class="fas fa-user ml-2"></i> כניסת תלמידים
-                </button>
-                <button onclick="switchLoginTab('teacher')" class="flex-1 py-4 text-center font-medium transition-colors ${loginTab === 'teacher' ? 'text-blue-800 border-b-2 border-blue-800 bg-blue-50/50' : 'text-slate-500 hover:text-slate-700'}">
-                    <i class="fas fa-lock ml-2"></i> כניסת צוות
-                </button>
-            </div>
-
-            <form onsubmit="handleLogin(event)" class="p-6 space-y-5">
+    <!-- Header -->
+    <header class="bg-blue-900 text-white shadow-md p-4 sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <i class="fas fa-school text-2xl"></i>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">סמל מוסד</label>
-                    <input type="text" id="orgCode" class="allow-copy w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="הכנס סמל מוסד" required>
-                </div>
-
-                ${loginTab === 'student' ? `
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">תעודת זהות</label>
-                        <input type="text" id="studentId" class="allow-copy w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">שם מלא</label>
-                        <input type="text" id="studentName" class="allow-copy w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
-                    </div>
-                    <div class="flex items-center gap-2 pt-2">
-                        <input type="checkbox" id="extraTime" class="w-4 h-4 text-blue-600 rounded cursor-pointer">
-                        <label for="extraTime" class="text-sm font-medium text-slate-700 cursor-pointer">האם אתה זכאי לתוספת זמן?</label>
-                    </div>
-                ` : `
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">סיסמת מורה</label>
-                        <input type="password" id="password" class="allow-copy w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="סיסמת כניסה" required>
-                    </div>
-                `}
-
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors mt-4">
-                    היכנס למערכת <i class="fas fa-arrow-left mr-2"></i>
-                </button>
-            </form>
-        </div>
-    </div>`;
-}
-
-function getInstructionsHTML() {
-    return `
-    <div class="flex-1 overflow-y-auto bg-slate-50 flex flex-col items-center p-4 py-12">
-        <div class="max-w-3xl w-full bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-            <div class="text-center mb-8 border-b pb-6 relative">
-                <h1 class="text-3xl font-bold text-slate-800 mb-2">עברית: הבנה, הבעה ולשון</h1>
-                <h2 class="text-xl text-slate-600 mb-1">לבתי ספר ערביים</h2>
-                <h3 class="text-lg font-medium text-blue-700 mb-4">בית ספר מקיף כאוכב אבו אלהיא</h3>
-                <span class="bg-blue-100 text-blue-800 py-1 px-4 rounded-full text-sm font-bold border border-blue-200">הכינה המורה חנאן חאג' מוחמד</span>
-            </div>
-            
-            <div class="space-y-4 text-slate-700 text-lg leading-relaxed">
-                <p><strong>הוראות</strong><br>משך הבחינה: שעתיים וחצי ${currentUser.extraTime ? '<span class="text-blue-600 font-bold">(+15% תוספת זמן)</span>' : ''}.</p>
-                <p><strong>א. מבנה השאלון ומפתח ההערכה:</strong> בשאלון זה שלושה פרקים.</p>
-                <ul class="list-disc pr-6 space-y-1">
-                    <li>פרק ראשון - הבנת הנקרא (50 נקודות)</li>
-                    <li>פרק שני - חיבור (25 נקודות)</li>
-                    <li>פרק שלישי - לשון (25 נקודות)</li>
-                </ul>
-                <p><strong>סה"כ: 100 נקודות</strong></p>
-                <p><strong>ב. חומר עזר מותר בשימוש:</strong> אין.</p>
-                <p><strong>ג. הוראות מיוחדות:</strong></p>
-                <ul class="list-decimal pr-6 space-y-1">
-                    <li>יש לענות על כל השאלות במקומות המיועדים לכך, בגוף השאלון המקוון.</li>
-                    <li>בכתיבת החיבור יש להתרכז בנושא, להימנע מהקדמות ארוכות, מסטיות מן הנושא ומחזרות.</li>
-                    <li>יש לשים לב לכתב, לכתיב, לפיסוק ולכללי הדקדוק.</li>
-                </ul>
-                <div class="mt-6 p-4 bg-blue-50 border-r-4 border-blue-600 rounded-l-lg">
-                    <p class="font-medium text-blue-800">השאלות בשאלון זה מנוסחות בלשון רבים, אף על פי כן על כל תלמידה וכל תלמיד להשיב עליהן באופן אישי.</p>
+                    <h1 class="text-xl font-bold">בית ספר מקיף כאוכב אבו אלהיגא</h1>
+                    <p class="text-sm opacity-80">עברית: הבנה, הבעה ולשון | שאלון 371</p>
                 </div>
             </div>
-            
-            <div class="mt-10 flex justify-center">
-                <button onclick="startExam()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-full shadow-lg transition-transform hover:scale-105 text-xl flex items-center gap-3">
-                    התחל מבחן עכשיו <i class="fas fa-play"></i>
-                </button>
+            <div id="header-controls" class="flex items-center gap-6">
+                <!-- Timer will be injected here -->
             </div>
         </div>
-    </div>`;
-}
+    </header>
 
-function getHeaderHTML() {
-    return `
-    <header class="bg-white shadow-sm border-b px-6 py-3 flex justify-between items-center shrink-0 z-20">
-        <div class="flex items-center gap-4">
-            <div class="flex flex-col">
-                <span class="font-bold text-lg text-slate-800">מבחן בעברית</span>
-                <span class="text-xs text-blue-600 font-medium"><i class="fas fa-pen-nib ml-1"></i>הכינה המורה חנאן חאג' מוחמד</span>
-            </div>
-            <div class="hidden md:flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full mr-4 border">
-                <i class="fas fa-user"></i> ${currentUser.name} (${currentUser.id})
-            </div>
-        </div>
-        <div class="flex items-center gap-6">
-            <div id="saveStatus" class="text-green-600 flex items-center gap-1 text-sm font-medium">
-                <i class="fas fa-check-circle"></i> נשמר
-            </div>
-            <div id="timerDisplay" class="font-mono text-xl font-bold flex items-center gap-2 px-4 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
-                ${formatTime(timeLeft)}
-            </div>
-        </div>
-    </header>`;
-}
-
-function getFooterHTML() {
-    const isP1 = currentExamStep === 'part1';
-    const isP2 = currentExamStep === 'part2';
-    const isP3 = currentExamStep === 'part3';
-    
-    return `
-    <footer class="bg-white border-t p-4 flex justify-between items-center shrink-0 z-20">
-        <div class="flex gap-2">
-            <button onclick="changeStep('${isP3 ? 'part2' : 'part1'}')" ${isP1 ? 'disabled' : ''} class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-colors font-medium">
-                <i class="fas fa-chevron-right"></i> פרק קודם
-            </button>
-        </div>
-        
-        <div class="flex gap-3">
-            <button onclick="changeStep('part1')" class="w-3 h-3 rounded-full transition-all ${isP1 ? 'bg-blue-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}"></button>
-            <button onclick="changeStep('part2')" class="w-3 h-3 rounded-full transition-all ${isP2 ? 'bg-blue-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}"></button>
-            <button onclick="changeStep('part3')" class="w-3 h-3 rounded-full transition-all ${isP3 ? 'bg-blue-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}"></button>
-            <button onclick="changeStep('summary')" class="w-3 h-3 rounded-full transition-all bg-slate-300 hover:bg-slate-400"></button>
-        </div>
-
-        <div class="flex gap-2">
-            <button onclick="changeStep('${isP1 ? 'part2' : isP2 ? 'part3' : 'summary'}')" class="px-6 py-2 bg-blue-100 text-blue-800 font-bold hover:bg-blue-200 rounded-lg flex items-center gap-2 transition-colors shadow-sm">
-                ${isP3 ? 'לסיכום והגשה' : 'פרק הבא'} <i class="fas fa-chevron-left"></i>
-            </button>
-        </div>
-    </footer>`;
-}
-
-function getExamHTML() {
-    let content = '';
-    if (currentExamStep === 'part1') content = getPart1HTML();
-    if (currentExamStep === 'part2') content = getPart2HTML();
-    if (currentExamStep === 'part3') content = getPart3HTML();
-
-    return `
-        ${getHeaderHTML()}
-        <main class="flex-1 overflow-hidden relative">
-            ${content}
-        </main>
-        ${getFooterHTML()}
-    `;
-}
-
-// Helper for Radio Buttons
-function radioGroup(name, options, currentValue) {
-    return `<div class="space-y-3 pr-10">
-        ${options.map((opt, i) => `
-            <label class="flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all hover:bg-slate-50 border-slate-200 has-[:checked]:bg-blue-50 has-[:checked]:border-blue-500">
-                <input type="radio" name="${name}" value="${opt}" ${currentValue === opt ? 'checked' : ''} onchange="updateAns('${name}', this.value)" class="mt-1 w-5 h-5 text-blue-600">
-                <span class="text-slate-700 text-lg leading-relaxed">${opt}</span>
-            </label>
-        `).join('')}
-    </div>`;
-}
-
-function getPart1HTML() {
-    const textHtml = EXAM_TEXT.map(p => `
-        <div class="relative pl-4">
-            <span class="absolute right-0 font-bold text-blue-300 select-none text-sm -mr-6 unselectable">פסקה ${p.id==='A'?'א':p.id==='B'?'ב':p.id==='C'?'ג':p.id==='D'?'ד':p.id==='E'?'ה':'ו'}</span>
-            <p>${p.text}</p>
-        </div>
-    `).join('');
-
-    return `
-    <div class="flex flex-col md:flex-row h-full">
-        <div class="w-full md:w-5/12 h-[40vh] md:h-full bg-white border-l border-slate-200 overflow-y-auto allow-copy relative shadow-[inset_-10px_0_20px_-20px_rgba(0,0,0,0.1)]">
-            <div class="p-8 pb-20">
-                <h2 class="text-2xl font-bold text-slate-800 mb-6 border-b pb-4 sticky top-0 bg-white/95 backdrop-blur-sm z-10 unselectable">
-                    פרק א' – הבנת הנקרא (50 נקודות)
-                </h2>
-                <h3 class="text-xl font-bold text-slate-700 mb-4 text-center unselectable">החיים בעיר המודרנית – בין איכות חיים להסלמה</h3>
-                <div class="space-y-6 text-slate-700 leading-loose text-lg allow-copy">
-                    ${textHtml}
-                </div>
-            </div>
-        </div>
-
-        <div class="w-full md:w-7/12 h-full overflow-y-auto bg-slate-50 p-6 md:p-8">
-            <div class="max-w-3xl mx-auto space-y-10 pb-20">
-                <div class="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
-                    <i class="fas fa-info-circle mt-1 text-xl"></i>
-                    <p class="text-sm font-medium">ניתן לסמן ולהעתיק מילים מתוך הטקסט, או לגרור אותן ישירות לתוך תיבות הטקסט (Drag & Drop) כדי לענות.</p>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">1</span> א. על פי פסקה א, מהי אחת הטענות המרכזיות של המחבר לגבי האופן שבו מתוכננות ערים מודרניות? (10 נקודות)</h4>
-                    ${radioGroup('q1a', [
-                        "הערים המודרניות מצליחות ליצור מגוון רחב של סגנונות חיים שונים.",
-                        "הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.",
-                        "הרשויות המקומיות אינן אחראיות כלל על תכנון הרחובות והשכונות.",
-                        "תושבי הערים מעדיפים לחיות במקומות שקטים ומנותקים מתעשייה."
-                    ], answers.q1a)}
-
-                    <h4 class="font-bold text-lg mb-4 mt-8 flex gap-2">ב. על פי פסקה ב, מה עלול להוביל לירידה בחוסן הנפשי של התושבים? (10 נקודות)</h4>
-                    ${radioGroup('q1b', [
-                        "מגורים בשכונות שקטות מדי, ללא אירועי תרבות.",
-                        "חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.",
-                        "שימוש מוגבר ברשתות החברתיות בזמן שעות המנוחה.",
-                        "אכיפה קפדנית של תקנות העירייה."
-                    ], answers.q1b)}
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">2</span> א. על פי פסקה ג, ציינו: (10 נקודות)</h4>
-                    <div class="space-y-4 pr-10">
-                        <div>
-                            <label class="block text-slate-700 mb-2 font-medium">- שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר את איכות החיים של התושבים:</label>
-                            <textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]" oninput="updateAns('q2a_1', this.value)">${answers.q2a_1 || ''}</textarea>
-                        </div>
-                        <div>
-                            <label class="block text-slate-700 mb-2 font-medium">- טענה אחת של חלק מן התושבים לגבי יישום התקנות בפועל:</label>
-                            <textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]" oninput="updateAns('q2a_2', this.value)">${answers.q2a_2 || ''}</textarea>
-                        </div>
-                    </div>
-
-                    <h4 class="font-bold text-lg mb-4 mt-8 flex gap-2">ב. על פי פסקה ד, תארו בקצרה את מדיניות האכיפה ההדרגתית המתוארת במאמר. (10 נקודות)</h4>
-                    <div class="pr-10">
-                        <textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]" oninput="updateAns('q2b', this.value)">${answers.q2b || ''}</textarea>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">3</span> א. על פי פסקה ה, מה יכולה להיות גם תועלת חיובית בפרסום סרטונים ברשתות החברתיות, אף על פי שהם עלולים ליצור תחושה של הקצנה? (10 נקודות)</h4>
-                    <div class="pr-10"><textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 min-h-[100px]" oninput="updateAns('q3a', this.value)">${answers.q3a || ''}</textarea></div>
-
-                    <h4 class="font-bold text-lg mb-4 mt-8 flex gap-2">ב. על פי המאמר כולו, מהי לדעתך עמדת הכותב כלפי שימוש בשפה חריפה בדיון הציבורי על העיר? (10 נקודות)</h4>
-                    <div class="pr-10"><textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 min-h-[120px]" oninput="updateAns('q3b', this.value)">${answers.q3b || ''}</textarea></div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">4</span> א. על פי המאמר כולו, מהי המטרה העיקרית של המאמר? (10 נקודות)</h4>
-                    ${radioGroup('q4a', [
-                        "לשכנע את הקוראים לעבור לגור בכפר במקום בעיר.",
-                        "לתאר את מנגנוני האכיפה המשפטית במדינה.",
-                        "לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר המודרנית.",
-                        "להציג נתונים סטטיסטיים על מצב הדיכאון בקרב צעירים."
-                    ], answers.q4a)}
-
-                    <h4 class="font-bold text-lg mb-4 mt-8 flex gap-2">ב. בפסקה א כתוב: "...רָשׁוּת מְקוֹמִית אחת או כמה רשויות, שלכל אחת מהן תקציב, סדרי עדיפויות ויכולת אכיפה משלה..."</h4>
-                    <p class="text-slate-700 mb-2 pr-10 font-medium">מהי הכוונה במילה "משלה" במשפט זה?</p>
-                    <div class="pr-10"><input type="text" class="allow-copy w-full border-slate-300 border-b-2 bg-slate-50 p-2 focus:border-blue-500 outline-none" oninput="updateAns('q4b', this.value)" value="${answers.q4b || ''}"></div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">5</span> בחרו שלוש מילים מן הרשימה, כתבו פירוש בעברית ומשפט חדש משלכם. (10 נקודות)</h4>
-                    <p class="text-slate-600 mb-4 pr-10">המילים לבחירה: מיפגע, הסלמה, חוסן נפשי, דעה קדומה, תקנות, מודעות</p>
-                    <div class="pr-10 space-y-6">
-                        ${[1,2,3].map(num => `
-                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <div class="flex flex-col md:flex-row gap-4 mb-3">
-                                    <div class="w-full md:w-1/3">
-                                        <label class="text-xs text-slate-500 block mb-1">מילה ${num}:</label>
-                                        <select class="allow-copy w-full p-2 border rounded-lg bg-white outline-none" onchange="updateAns('q5_word_${num}', this.value)">
-                                            <option value="">בחר מילה...</option>
-                                            ${['מיפגע','הסלמה','חוסן נפשי','דעה קדומה','תקנות','מודעות'].map(w => `<option value="${w}" ${answers[`q5_word_${num}`]===w?'selected':''}>${w}</option>`).join('')}
-                                        </select>
-                                    </div>
-                                    <div class="w-full md:w-2/3">
-                                        <label class="text-xs text-slate-500 block mb-1">פירוש:</label>
-                                        <input type="text" class="allow-copy w-full p-2 border rounded-lg outline-none focus:ring-1 focus:ring-blue-500" oninput="updateAns('q5_meaning_${num}', this.value)" value="${answers[`q5_meaning_${num}`] || ''}">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="text-xs text-slate-500 block mb-1">משפט:</label>
-                                    <input type="text" class="allow-copy w-full p-2 border rounded-lg outline-none focus:ring-1 focus:ring-blue-500" oninput="updateAns('q5_sentence_${num}', this.value)" value="${answers[`q5_sentence_${num}`] || ''}">
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <h4 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">6</span> קראו את הקטע הבא וענו על השאלות שאחריו:</h4>
-                    <div class="bg-amber-50 border-r-4 border-amber-400 p-4 rounded-l-lg mb-6 text-slate-700 allow-copy leading-relaxed text-lg">
-                        ${ADDED_TEXT}
-                    </div>
-                    <div class="space-y-6 pr-10">
-                        <div>
-                            <h5 class="font-medium text-slate-800 mb-2">א. על פי הקטע הנוסף ועל פי פסקה ג, הסבירו כיצד מסייעות התקנות והקנסות להתמודד עם בעיית הרעש בעיר. (10 נקודות)</h5>
-                            <textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]" oninput="updateAns('q6a', this.value)">${answers.q6a || ''}</textarea>
-                        </div>
-                        <div>
-                            <h5 class="font-medium text-slate-800 mb-2">ב. על פי הקטע הנוסף ועל פי פסקה ב, הסבירו מדוע יכולים חלק מן התושבים לראות ברעש המתמשך גורם המסכן את החוסן הנפשי שלהם. (10 נקודות)</h5>
-                            <textarea class="allow-copy w-full border-slate-300 border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]" oninput="updateAns('q6b', this.value)">${answers.q6b || ''}</textarea>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </div>`;
-}
-
-function getPart2HTML() {
-    const topics = [
-      { id: 'A', title: 'א. בחירת מקצוע לעתיד.', desc: 'לקראת סיום הלימודים בבית הספר התיכון, תלמידים רבים עומדים בפני בחירה משמעותית בחייהם - בחירת מקצוע לעתיד. ההתלבטות אינה פשוטה: האם לבחור מקצוע בתחום שמעניין אותי ויכול לגרום לי הנאה וסיפוק... בחיבורכם הביעו את דעתכם בנושא. בחרו בשני שיקולים שנראים בעיניכם הכי חשובים, נמקו את בחירתכם והביאו דוגמאות.' },
-      { id: 'B', title: 'ב. התמכרות בני הנוער למשחקי מחשב.', desc: 'בימינו משחקי מחשב הם פעילות פופולארית בקרב בני נוער. יש להם השפעות חיוביות, אבל כאשר השימוש בהם הופך להתמכרות, הוא עלול לפגוע בבריאות, בלימודים ובחיי החברה. בחיבורכם פרטו שתי סיבות שבגללן בני הנוער מתמכרים למשחקים, והציעו דרכים שבאמצעותן ניתן להתמודד עם התופעה.' },
-      { id: 'C', title: 'ג. אירוע מפחיד ועצוב שחוויתם.', desc: 'רוב בני האדם חווים בחייהם אירועים מפחידים ועצובים. בחיבורכם תארו אירוע שגרם לכם לחוות חרדה, עצב או שניהם גם יחד. ספרו על המחשבות והרגשות שחוויתם בתגובה לאירוע ועל הדרך שבה התמודדתם עם החוויה.' }
-    ];
-
-    let topicHtml = topics.map(t => `
-        <div onclick="updateAns('essayTopic', '${t.id}'); render();" class="p-5 rounded-2xl border-2 cursor-pointer transition-all ${answers.essayTopic === t.id ? 'border-blue-600 bg-blue-50 shadow-md transform -translate-y-1' : 'border-slate-200 bg-white hover:border-blue-300'}">
-            <div class="flex items-center gap-3 mb-3">
-                <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center ${answers.essayTopic === t.id ? 'border-blue-600' : 'border-slate-400'}">
-                    ${answers.essayTopic === t.id ? '<div class="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>' : ''}
-                </div>
-                <h3 class="font-bold text-slate-800 text-lg">${t.title}</h3>
-            </div>
-            <p class="text-sm text-slate-600 leading-relaxed">${t.desc}</p>
-        </div>
-    `).join('');
-
-    return `
-    <div class="h-full overflow-y-auto p-6 md:p-12 bg-slate-50">
-        <div class="max-w-4xl mx-auto pb-20">
-            <h2 class="text-2xl font-bold text-slate-800 mb-2 border-b-2 border-blue-600 pb-2 inline-block">פרק שני – חיבור (25 נקודות)</h2>
-            <p class="text-slate-600 mb-8 mt-2 text-lg">ענו על שאלה 7 בלבד. בחרו נושא אחד (א, ב או ג). אורך החיבור: 10–15 שורות. הקפידו על ניסוח ברור, רצף רעיוני, דוגמאות מתאימות, לשון תקינה וסימני פיסוק.</p>
-
-            <div class="grid md:grid-cols-3 gap-6 mb-8">
-                ${topicHtml}
-            </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
-                <div class="flex justify-between items-center mb-4">
-                    <label class="font-bold text-xl text-slate-800">
-                        ${answers.essayTopic ? `כתיבת חיבור: ${topics.find(t=>t.id===answers.essayTopic).title}` : 'אנא בחרו נושא מן הרשימה למעלה כדי להתחיל לכתוב'}
-                    </label>
-                    <span class="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full border">10-15 שורות</span>
-                </div>
-                <textarea class="allow-copy w-full border-2 rounded-xl p-6 text-lg leading-loose focus:ring-0 focus:border-blue-500 outline-none transition-colors min-h-[400px] ${!answers.essayTopic ? 'bg-slate-50 cursor-not-allowed border-slate-200' : 'bg-white border-slate-300'}"
-                    placeholder="${answers.essayTopic ? "התחילו לכתוב את החיבור כאן..." : "בחרו נושא קודם..."}"
-                    oninput="updateAns('essayText', this.value)"
-                    ${!answers.essayTopic ? 'disabled' : ''}>${answers.essayText || ''}</textarea>
-            </div>
-        </div>
-    </div>`;
-}
-
-function getPart3HTML() {
-    const q8 = [
-      { id: 'a', text: 'רשויות רבות מַדְגִּישׁוֹת את חשיבות איכות החיים של התושבים.', word: 'מַדְגִּישׁוֹת', binyan: 'הפעיל', test: 'המורה __________ את הנקודה המרכזית בשיעור.' },
-      { id: 'b', text: 'לא פעם מִתְעוֹרְרוֹת מחלוקות בין תושבים לבין הרשות.', word: 'מִתְעוֹרְרוֹת', binyan: 'פועל', test: 'הרעש החזק __________ את התושבים בלילה.' },
-      { id: 'c', text: 'מחקרים מַצְבִּיעִים על כך שחיים בסביבה רועשת עלולים להזיק.', word: 'מַצְבִּיעִים', binyan: 'הופעל', test: 'במחקר זה __________ על קשר בין רעש לבריאות.' },
-      { id: 'd', text: 'הרשות המקומית קוֹבַעַת תקנות שונות.', word: 'קוֹבַעַת', binyan: 'נפעל', test: 'גובה הקנס _____________ אחרי בית המשפט בחודש הבא.' },
-      { id: 'e', text: 'בשנים האחרונות התושבים מִשְׁתַּמְּשִׁים בפלטפורמות מקוונות.', word: 'מִשְׁתַּמְּשִׁים', binyan: 'פיעל', test: 'הטכנולוגיה __________ את התושבים לצורך שיתוף מידע.' }
-    ];
-
-    return `
-    <div class="h-full overflow-y-auto p-6 md:p-12 bg-slate-50">
-        <div class="max-w-4xl mx-auto space-y-12 pb-20">
-            <div>
-                <h2 class="text-2xl font-bold text-slate-800 mb-2 border-b-2 border-blue-600 pb-2 inline-block">פרק שלישי – לשון (25 נקודות)</h2>
-                <p class="text-slate-600 mt-2 text-lg">ענו על כל הסעיפים (8-10). פעלים בבניינים פיעל, פועל, הופעל כתבו בכתיב מלא.</p>
-            </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="font-bold text-lg mb-6 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">8</span> נתחו את הפעלים במשפטים הבאים:</h3>
-                <div class="space-y-8 pr-4">
-                    ${q8.map((s, idx) => `
-                        <div class="border-b border-slate-100 pb-6 last:border-0 last:pb-0">
-                            <h4 class="font-medium text-slate-800 mb-3 bg-slate-50 p-2 rounded text-lg">${String.fromCharCode(1488 + idx)}. ${s.text}</h4>
-                            <div class="grid md:grid-cols-2 gap-4 pr-4">
-                                <div>
-                                    <label class="text-sm text-slate-600 block mb-1">(1) השורש של הפועל "${s.word}" הוא:</label>
-                                    <input type="text" class="allow-copy w-full border-slate-300 border-b-2 bg-slate-50 p-2 focus:border-blue-500 outline-none text-center tracking-widest text-lg" oninput="updateAns('q8_${s.id}_root', this.value)" value="${answers[`q8_${s.id}_root`] || ''}" placeholder="X-X-X">
-                                </div>
-                                <div>
-                                    <label class="text-sm text-slate-600 block mb-1">(2) הבניין של הפועל "${s.word}" הוא:</label>
-                                    <input type="text" class="allow-copy w-full border-slate-300 border-b-2 bg-slate-50 p-2 focus:border-blue-500 outline-none text-lg" oninput="updateAns('q8_${s.id}_binyan', this.value)" value="${answers[`q8_${s.id}_binyan`] || ''}">
-                                </div>
-                                <div class="md:col-span-2 mt-2">
-                                    <label class="text-sm text-slate-600 block mb-1">(3) השלימו פועל אחר מאותו שורש בבניין ${s.binyan}:</label>
-                                    <div class="flex items-center gap-2 bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-lg">
-                                        <span class="text-slate-700">${s.test.split('__________')[0]}</span>
-                                        <input type="text" class="allow-copy w-32 border-b-2 border-blue-400 bg-transparent text-center font-bold text-blue-800 outline-none focus:border-blue-600" oninput="updateAns('q8_${s.id}_fill', this.value)" value="${answers[`q8_${s.id}_fill`] || ''}">
-                                        <span class="text-slate-700">${s.test.split('__________')[1]}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="font-bold text-lg mb-4 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">9</span> שם העצם ומבנה המילה (4 נקודות)</h3>
-                <div class="bg-slate-50 p-4 rounded-xl text-slate-700 mb-6 italic border-r-4 border-slate-300 text-lg leading-relaxed allow-copy">
-                    "הרשות המקומית פרסמה <strong>אזהרה</strong> רשמית בעקבות <strong>הסלמה</strong> ברמת הרעש בשכונות מסוימות במיוחד שיש בהן <strong>אטרקציות</strong>. בהודעה הודגש כי <strong>התעלמות</strong> מן התקנות תיחשב הפרה חמורה, וכי יופעל <strong>מנגנון</strong> פיקוח חדש. הרשות ציינה כי כל תלונה תיבדק ברצינות, וכי המטרה איננה ענישה, אלא שיפור <strong>איכות</strong> החיים של התושבים."
-                </div>
-                <p class="mb-4 text-slate-700 font-medium">מיינו את המילים המודגשות בטבלה לפי דרך התצורה:</p>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-right border-collapse">
-                        <thead>
-                            <tr class="bg-slate-100 text-slate-700">
-                                <th class="border p-3 w-1/4">המילה</th>
-                                <th class="border p-3 w-1/4 text-center">שורש ומשקל</th>
-                                <th class="border p-3 w-1/4 text-center">בסיס וצורן</th>
-                                <th class="border p-3 w-1/4 text-center">שאילה מלעז</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${['אזהרה', 'הסלמה', 'אטרקציות', 'התעלמות', 'מנגנון', 'איכות'].map(word => `
-                                <tr class="hover:bg-slate-50">
-                                    <td class="border p-3 font-bold bg-slate-50">${word}</td>
-                                    <td class="border p-0 text-center"><label class="block w-full h-full p-4 cursor-pointer"><input type="radio" name="q9_${word}" value="שורש_ומשקל" ${answers[`q9_${word}`]==='שורש_ומשקל'?'checked':''} onchange="updateAns('q9_${word}', this.value)" class="w-5 h-5 text-blue-600"></label></td>
-                                    <td class="border p-0 text-center"><label class="block w-full h-full p-4 cursor-pointer"><input type="radio" name="q9_${word}" value="בסיס_וצורן" ${answers[`q9_${word}`]==='בסיס_וצורן'?'checked':''} onchange="updateAns('q9_${word}', this.value)" class="w-5 h-5 text-blue-600"></label></td>
-                                    <td class="border p-0 text-center"><label class="block w-full h-full p-4 cursor-pointer"><input type="radio" name="q9_${word}" value="שאילה" ${answers[`q9_${word}`]==='שאילה'?'checked':''} onchange="updateAns('q9_${word}', this.value)" class="w-5 h-5 text-blue-600"></label></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="font-bold text-lg mb-2 flex gap-2"><span class="bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-full shrink-0">10</span> מילות קישור במשפטים (6 נקודות)</h3>
-                <p class="text-slate-600 mb-6 font-medium">ענו על שניים מן הסעיפים א–ג. (3 נקודות לכל סעיף)</p>
-                <div class="space-y-8 pr-4">
-                    <div>
-                        <h4 class="font-medium text-slate-800 mb-3 text-lg">א. בחרו את מילת הקישור המתאימה:</h4>
-                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p class="mb-4 text-lg">חלק מן התושבים מרגישים שהעיר מספקת להם תנאים טובים, ______________ אחרים טוענים שהרעש והזיהום בלתי נסבלים.</p>
-                            <div class="flex flex-wrap gap-4">
-                                ${['אבל', 'מכיוון ש', 'לכן', 'כדי ש'].map(opt => `
-                                    <label class="px-6 py-2 border rounded-full cursor-pointer transition-colors text-lg font-medium has-[:checked]:bg-blue-600 has-[:checked]:text-white has-[:checked]:border-blue-600 hover:bg-slate-100 bg-white border-slate-300">
-                                        <input type="radio" name="q10a" value="${opt}" ${answers.q10a===opt?'checked':''} onchange="updateAns('q10a', this.value)" class="hidden"> ${opt}
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="font-medium text-slate-800 mb-3 text-lg">ב. בחרו את מילת הקישור המתאימה:</h4>
-                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p class="mb-4 text-lg">הרשות המקומית הגבילה את שעות פעילות המפעלים, _______________ להפחית את רמת הרעש בשכונות המגורים.</p>
-                            <div class="flex flex-wrap gap-4">
-                                ${['אף על פי ש', 'כדי', 'למרות', 'או'].map(opt => `
-                                    <label class="px-6 py-2 border rounded-full cursor-pointer transition-colors text-lg font-medium has-[:checked]:bg-blue-600 has-[:checked]:text-white has-[:checked]:border-blue-600 hover:bg-slate-100 bg-white border-slate-300">
-                                        <input type="radio" name="q10b" value="${opt}" ${answers.q10b===opt?'checked':''} onchange="updateAns('q10b', this.value)" class="hidden"> ${opt}
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 class="font-medium text-slate-800 mb-3 text-lg">ג. החליפו את מילת הקישור "אבל" באחרת, בלי לשנות את המשמעות:</h4>
-                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p class="mb-4 text-lg">התושבים ביקשו מהרשות לפעול במהירות, <strong class="underline decoration-2">אבל</strong> הם המשיכו לסבול מן המיפגעים עוד חודשים רבים.</p>
-                            <div class="flex flex-wrap gap-4">
-                                ${['למרות זאת', 'משום כך', 'כדי ש', 'או'].map(opt => `
-                                    <label class="px-6 py-2 border rounded-full cursor-pointer transition-colors text-lg font-medium has-[:checked]:bg-blue-600 has-[:checked]:text-white has-[:checked]:border-blue-600 hover:bg-slate-100 bg-white border-slate-300">
-                                        <input type="radio" name="q10c" value="${opt}" ${answers.q10c===opt?'checked':''} onchange="updateAns('q10c', this.value)" class="hidden"> ${opt}
-                                    </label>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-center mt-12">
-                <p class="text-2xl font-bold text-blue-600">בהצלחה 😊</p>
-            </div>
-        </div>
-    </div>`;
-}
-
-function getSummaryHTML() {
-    const isAns = (v) => v && v.toString().trim() !== '';
-    const status = {
-        'פרק א - סגורות (1, 4א)': isAns(answers.q1a) && isAns(answers.q1b) && isAns(answers.q4a),
-        'פרק א - פתוחות (2, 3, 4ב, 6)': isAns(answers.q2a_1) && isAns(answers.q2b) && isAns(answers.q3a) && isAns(answers.q6a),
-        'פרק א - אוצר מילים (5)': isAns(answers.q5_meaning_1) && isAns(answers.q5_meaning_2),
-        'פרק ב - חיבור': isAns(answers.essayTopic) && (answers.essayText||'').length > 30,
-        'פרק ג - שורש ובניין (8)': isAns(answers.q8_a_root) && isAns(answers.q8_b_root),
-        'פרק ג - תצורת מילה (9)': isAns(answers.q9_אזהרה) && isAns(answers.q9_אטרקציות),
-        'פרק ג - מילות קישור (10)': (isAns(answers.q10a)?1:0)+(isAns(answers.q10b)?1:0)+(isAns(answers.q10c)?1:0) >= 2
-    };
-
-    const total = Object.keys(status).length;
-    const completed = Object.values(status).filter(Boolean).length;
-    const pct = Math.round((completed / total) * 100);
-
-    return `
-    ${getHeaderHTML()}
-    <main class="flex-1 overflow-y-auto bg-slate-50 flex items-center justify-center p-6">
-        <div class="bg-white rounded-2xl shadow-lg p-8 max-w-2xl w-full text-center border border-slate-200">
-            <h2 class="text-3xl font-bold text-slate-800 mb-6">סיכום לפני הגשה</h2>
-            
-            <div class="mb-8">
-                <div class="w-32 h-32 mx-auto relative mb-4">
-                    <svg viewBox="0 0 36 36" class="w-full h-full stroke-current text-slate-200">
-                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3" />
-                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3" stroke-dasharray="${pct}, 100" class="${pct===100 ? 'text-green-500' : 'text-blue-500'}" />
-                    </svg>
-                    <div class="absolute inset-0 flex items-center justify-center flex-col">
-                        <span class="text-3xl font-bold text-slate-700">${pct}%</span>
-                    </div>
-                </div>
-                <p class="text-slate-600 text-lg font-medium">ענית על ${completed} מתוך ${total} חלקי המבחן</p>
-            </div>
-
-            <div class="text-right bg-slate-50 p-6 rounded-xl border mb-8 space-y-3">
-                ${Object.entries(status).map(([k, isDone]) => `
-                    <div class="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                        <span class="text-slate-700 font-medium">${k}</span>
-                        ${isDone 
-                            ? `<span class="text-green-700 bg-green-100 px-3 py-1 rounded text-sm font-bold flex items-center gap-1"><i class="fas fa-check-circle"></i> הושלם</span>` 
-                            : `<span class="text-amber-700 bg-amber-100 px-3 py-1 rounded text-sm font-bold flex items-center gap-1"><i class="fas fa-exclamation-triangle"></i> חסר</span>`}
-                    </div>
-                `).join('')}
-            </div>
-
-            ${completed < total ? `
-                <div class="bg-amber-50 text-amber-800 p-4 rounded-lg mb-8 flex gap-3 text-right">
-                    <i class="fas fa-exclamation-triangle mt-1"></i>
-                    <p class="text-sm font-medium">שים לב: לא השלמת את כל חלקי המבחן. תוכל לחזור אחורה ולהשלים (הזמן ממשיך לרוץ), או להגיש את המבחן כפי שהוא כעת.</p>
-                </div>
-            ` : ''}
-
-            <button onclick="submitExam(false)" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-md transition-transform hover:scale-[1.02] flex justify-center items-center gap-2 text-xl">
-                <i class="fas fa-paper-plane"></i> הגש מבחן סופית למורה
-            </button>
-        </div>
+    <!-- Main Content App Area -->
+    <main id="app" class="flex-grow container mx-auto p-4 flex flex-col">
+        <!-- Views rendered by JS -->
     </main>
-    ${getFooterHTML()}
-    `;
-}
 
-// ==========================================
-// ממשק מורה (Teacher)
-// ==========================================
+    <!-- Footer -->
+    <footer class="bg-gray-200 text-gray-600 p-4 text-center mt-auto border-t">
+        <p class="font-medium">הכינה המורה חנאן חאג' מוחמד &copy; 2026</p>
+    </footer>
 
-function getTeacherHeaderHTML() {
-    return `
-    <header class="bg-blue-800 text-white shadow-md px-6 py-4 flex justify-between items-center shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="bg-white/20 p-2 rounded-lg text-xl"><i class="fas fa-user-tie"></i></div>
-            <div>
-                <h1 class="font-bold text-lg">פאנל ניהול ובדיקה - צוות הוראה</h1>
-                <p class="text-blue-200 text-sm font-medium">מוסד: ${currentUser.orgCode}</p>
-            </div>
-        </div>
-        <div class="flex gap-4">
-            ${currentView === 'teacher_grading' ? `
-                <button onclick="currentView='teacher_dashboard'; render();" class="px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded-lg font-medium transition-colors flex items-center gap-2">
-                    <i class="fas fa-chevron-right"></i> חזור לרשימה
-                </button>
-            ` : ''}
-            <button onclick="logout()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors flex items-center gap-2">
-                <i class="fas fa-sign-out-alt"></i> התנתק
-            </button>
-        </div>
-    </header>`;
-}
+    <script>
+        // --- Firebase Integration ---
+        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged;
+        let currentUser = null;
+        window.firebaseLoaded = false;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hebrew-exam-371';
+        let studentsData = []; // Data from Firestore
+        let submissionsUnsubscribe = null;
 
-function getTeacherDashboardHTML() {
-    const mySubs = submissions.filter(s => s.student.orgCode === currentUser.orgCode);
-    const gradedCount = mySubs.filter(s => s.graded).length;
-    const avg = gradedCount > 0 ? Math.round(mySubs.reduce((sum, s) => sum + (s.graded?s.finalScore:0), 0) / gradedCount) : 0;
+        // Dynamic import of Firebase modules to maintain script block structure
+        import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js").then(module => {
+            const initializeApp = module.initializeApp;
+            
+            // Your custom Firebase configuration with fallback to injected config if available
+            const fallbackConfig = {
+              apiKey: "AIzaSyBFkXVHaJFwsvxvzdZywnOTA1V7yny8ugs",
+              authDomain: "hebrew-exam1-371.firebaseapp.com",
+              projectId: "hebrew-exam1-371",
+              storageBucket: "hebrew-exam1-371.firebasestorage.app",
+              messagingSenderId: "814394994442",
+              appId: "1:814394994442:web:35b94640eb1f431fb994f3",
+              measurementId: "G-LTMZ4Q2H29"
+            };
+            
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
 
-    const rowHtml = mySubs.length === 0 
-        ? `<tr><td colspan="7" class="p-8 text-center text-slate-500 font-medium">אין מבחנים להצגה כרגע עבור סמל מוסד זה.</td></tr>`
-        : mySubs.map(s => `
-            <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors">
-                <td class="p-4 font-mono text-sm">${s.student.id}</td>
-                <td class="p-4 font-bold text-slate-700">${s.student.name}</td>
-                <td class="p-4 text-sm text-slate-500">${new Date(s.submittedAt).toLocaleTimeString('he-IL')}</td>
-                <td class="p-4">
-                    ${s.cheatLogs && s.cheatLogs.length > 0 
-                        ? `<span class="text-red-700 flex items-center gap-1 text-xs font-bold bg-red-100 px-2 py-1 rounded w-fit"><i class="fas fa-exclamation-triangle"></i> ${s.cheatLogs.length} חריגות</span>` 
-                        : `<span class="text-slate-400 text-sm">-</span>`}
-                </td>
-                <td class="p-4">
-                    <span class="px-3 py-1 rounded text-xs font-bold ${s.graded ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">
-                        ${s.graded ? 'נבדק' : 'ממתין לבדיקה'}
-                    </span>
-                </td>
-                <td class="p-4">
-                    ${s.graded ? `<span class="px-3 py-1 rounded-full text-sm font-bold border ${s.finalScore >= 81 ? 'bg-green-50 text-green-700 border-green-200' : s.finalScore >= 61 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}">${s.finalScore}</span>` : '-'}
-                </td>
-                <td class="p-4">
-                    <button onclick="selectedSubmissionId='${s.id}'; currentView='teacher_grading'; render();" class="text-blue-600 hover:text-blue-800 hover:underline font-bold text-sm bg-blue-50 px-3 py-1 rounded">
-                        ${s.graded ? 'צפה / ערוך' : 'בדוק עכשיו <i class="fas fa-pencil-alt ml-1"></i>'}
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+            const app = initializeApp(firebaseConfig);
+            
+            Promise.all([
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"),
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js")
+            ]).then(([firestore, authModule]) => {
+                db = firestore.getFirestore(app);
+                auth = authModule.getAuth(app);
+                collection = firestore.collection;
+                addDoc = firestore.addDoc;
+                onSnapshot = firestore.onSnapshot;
+                serverTimestamp = firestore.serverTimestamp;
+                signInAnonymously = authModule.signInAnonymously;
+                signInWithCustomToken = authModule.signInWithCustomToken;
+                onAuthStateChanged = authModule.onAuthStateChanged;
 
-    return `
-    ${getTeacherHeaderHTML()}
-    <main class="p-6 max-w-7xl mx-auto flex-1 w-full allow-copy">
-        <div class="grid md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                <div class="bg-blue-100 p-4 rounded-full text-blue-600 text-xl"><i class="fas fa-file-alt"></i></div>
-                <div><p class="text-sm text-slate-500 font-medium">הגשות סה"כ</p><p class="text-2xl font-bold">${mySubs.length}</p></div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                <div class="bg-amber-100 p-4 rounded-full text-amber-600 text-xl"><i class="fas fa-clock"></i></div>
-                <div><p class="text-sm text-slate-500 font-medium">ממתינים לבדיקה</p><p class="text-2xl font-bold">${mySubs.length - gradedCount}</p></div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                <div class="bg-green-100 p-4 rounded-full text-green-600 text-xl"><i class="fas fa-check"></i></div>
-                <div><p class="text-sm text-slate-500 font-medium">נבדקו</p><p class="text-2xl font-bold">${gradedCount}</p></div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-                <div class="bg-purple-100 p-4 rounded-full text-purple-600 text-xl"><i class="fas fa-chart-line"></i></div>
-                <div><p class="text-sm text-slate-500 font-medium">ממוצע כיתתי</p><p class="text-2xl font-bold">${avg}</p></div>
-            </div>
-        </div>
+                onAuthStateChanged(auth, user => {
+                    currentUser = user;
+                    if (user && state.view === 'teacher_dash') {
+                        loadSubmissions();
+                    }
+                });
 
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="p-4 border-b flex justify-between items-center bg-slate-50">
-                <h2 class="font-bold text-lg text-slate-800">רשימת תלמידים (כיתה: ${currentUser.orgCode})</h2>
-                <button onclick="exportCSV()" class="flex items-center gap-2 text-sm font-medium bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition">
-                    <i class="fas fa-download"></i> ייצא לאקסל
-                </button>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-right">
-                    <thead>
-                        <tr class="bg-slate-100 text-slate-600 text-sm border-b">
-                            <th class="p-4 font-bold">ת"ז</th>
-                            <th class="p-4 font-bold">שם תלמיד/ה</th>
-                            <th class="p-4 font-bold">מועד הגשה</th>
-                            <th class="p-4 font-bold">חריגות (רמאות)</th>
-                            <th class="p-4 font-bold">סטטוס</th>
-                            <th class="p-4 font-bold">ציון</th>
-                            <th class="p-4 font-bold">פעולה</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rowHtml}</tbody>
-                </table>
-            </div>
-        </div>
-    </main>`;
-}
+                // Strict quiet authentication (No popups)
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        window.firebaseLoaded = true;
+                    } catch (e) {
+                        console.error("Firebase Auth Error", e);
+                    }
+                };
+                
+                initAuth();
+            });
+        });
 
-function exportCSV() {
-    const mySubs = submissions.filter(s => s.student.orgCode === currentUser.orgCode);
-    const headers = ['ת"ז', 'שם', 'סטטוס', 'ציון'];
-    const rows = mySubs.map(s => [s.student.id, s.student.name, s.graded ? 'נבדק' : 'ממתין', s.graded ? s.finalScore : '-']);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ציונים_כיתה_${currentUser.orgCode}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
+        function loadSubmissions() {
+            if(!currentUser || !window.firebaseLoaded) return;
+            if (submissionsUnsubscribe) submissionsUnsubscribe();
+            
+            // Following strict artifacts path rules to ensure stability
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+            
+            submissionsUnsubscribe = onSnapshot(colRef, (snapshot) => {
+                studentsData = [];
+                snapshot.forEach(doc => {
+                    studentsData.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Sort array to show newest first locally
+                studentsData.sort((a, b) => {
+                    if(!a.timestamp) return 1;
+                    if(!b.timestamp) return -1;
+                    return b.timestamp.seconds - a.timestamp.seconds;
+                });
 
-// Teacher Grading View variables
-let currentGrades = {};
-let currentComments = {};
-let currentPenalty = 0;
+                if(state.view === 'teacher_dash') render(); 
+            }, (error) => {
+                console.error("Error fetching submissions:", error);
+            });
+        }
 
-function getTeacherGradingHTML() {
-    const sub = submissions.find(s => s.id === selectedSubmissionId);
-    if(!sub) { currentView='teacher_dashboard'; return ''; }
-    
-    // Init state if empty
-    if(Object.keys(currentGrades).length === 0 && sub.grades) currentGrades = sub.grades;
-    if(Object.keys(currentComments).length === 0 && sub.comments) currentComments = sub.comments;
-    if(!currentPenalty && sub.penalty) currentPenalty = sub.penalty;
+        // --- Custom Modal Function (Replaces alert/confirm blocked in iframes) ---
+        window.showModal = function(message, isConfirm = false, onConfirm = null) {
+            const existing = document.getElementById('custom-modal');
+            if(existing) existing.remove();
 
-    const ans = sub.answers;
-    
-    const displayAns = (q, a) => `
-        <div class="bg-slate-50 p-4 rounded-lg border border-slate-100 mb-4">
-            <p class="font-bold text-slate-800 mb-2">${q}</p>
-            <p class="text-slate-700 whitespace-pre-wrap text-lg">${a || '<span class="text-slate-400 italic">לא נענה</span>'}</p>
-        </div>`;
-        
-    const cheatHtml = sub.cheatLogs?.length > 0 ? `
-        <div class="bg-red-50 p-4 border-b border-red-200">
-            <h3 class="font-bold text-red-800 flex items-center gap-2 mb-2"><i class="fas fa-exclamation-triangle"></i> התראות מערכת (חריגות שנקלטו)</h3>
-            <ul class="list-disc pr-6 text-sm text-red-700 font-medium">
-                ${sub.cheatLogs.map(l => `<li>${new Date(l.time).toLocaleTimeString()} - ${l.action}</li>`).join('')}
-            </ul>
-        </div>` : '';
-
-    return `
-    ${getTeacherHeaderHTML()}
-    <div class="flex flex-col md:flex-row gap-6 p-6 h-[calc(100vh-76px)] overflow-hidden w-full max-w-7xl mx-auto allow-copy">
-        <div class="w-full md:w-2/3 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-            <div class="bg-slate-800 text-white p-4 shrink-0 flex justify-between items-center">
-                <h2 class="font-bold text-lg"><i class="fas fa-file-alt ml-2"></i> תשובות התלמיד: ${sub.student.name}</h2>
-                <span class="text-slate-300 font-mono text-sm">ת"ז: ${sub.student.id}</span>
-            </div>
-            ${cheatHtml}
-            <div class="overflow-y-auto p-6 flex-1 space-y-8">
-                <div>
-                    <h3 class="text-xl font-bold text-slate-800 border-b-2 border-slate-200 pb-2 mb-4 text-blue-800">פרק א' - הבנת הנקרא</h3>
-                    ${displayAns("1.א טענה מרכזית", ans.q1a)}
-                    ${displayAns("1.ב ירידה בחוסן הנפשי", ans.q1b)}
-                    ${displayAns("2.א.1 תקנות לשיפור", ans.q2a_1)}
-                    ${displayAns("2.א.2 טענות תושבים", ans.q2a_2)}
-                    ${displayAns("2.ב מדיניות הדרגתית", ans.q2b)}
-                    ${displayAns("3.א תועלת בסרטונים ברשתות", ans.q3a)}
-                    ${displayAns("3.ב עמדת הכותב (שפה חריפה)", ans.q3b)}
-                    ${displayAns("4.א המטרה העיקרית", ans.q4a)}
-                    ${displayAns("4.ב משמעות 'משלה'", ans.q4b)}
-                    ${displayAns("5. מילה 1: " + (ans.q5_word_1||''), "פירוש: " + (ans.q5_meaning_1||'') + "\nמשפט: " + (ans.q5_sentence_1||''))}
-                    ${displayAns("5. מילה 2: " + (ans.q5_word_2||''), "פירוש: " + (ans.q5_meaning_2||'') + "\nמשפט: " + (ans.q5_sentence_2||''))}
-                    ${displayAns("5. מילה 3: " + (ans.q5_word_3||''), "פירוש: " + (ans.q5_meaning_3||'') + "\nמשפט: " + (ans.q5_sentence_3||''))}
-                    ${displayAns("6.א תקנות וקנסות", ans.q6a)}
-                    ${displayAns("6.ב חוסן נפשי (רעש מתמשך)", ans.q6b)}
-                </div>
-                <div>
-                    <h3 class="text-xl font-bold text-slate-800 border-b-2 border-slate-200 pb-2 mb-4 text-blue-800">פרק ב' - חיבור</h3>
-                    <p class="font-bold text-slate-700 mb-2">נושא נבחר: ${ans.essayTopic || 'לא נבחר'}</p>
-                    <div class="bg-slate-50 border border-slate-200 p-6 rounded-lg whitespace-pre-wrap leading-loose min-h-[200px] text-lg">
-                        ${ans.essayText || '- אין תשובה -'}
+            const modalHtml = `
+                <div id="custom-modal" class="fixed inset-0 bg-black bg-opacity-60 z-[9999] flex items-center justify-center backdrop-blur-sm">
+                    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4 text-center transform transition-all border-t-4 border-blue-600">
+                        <div class="text-xl font-bold mb-6 text-gray-800">${message}</div>
+                        <div class="flex justify-center gap-4 mt-6">
+                            ${isConfirm ? `<button id="modal-cancel" class="px-6 py-2 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300 transition">ביטול</button>` : ''}
+                            <button id="modal-ok" class="px-8 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow">אישור</button>
+                        </div>
                     </div>
                 </div>
-                <div>
-                    <h3 class="text-xl font-bold text-slate-800 border-b-2 border-slate-200 pb-2 mb-4 text-blue-800">פרק ג' - לשון</h3>
-                    ${['a','b','c','d','e'].map(id => `
-                        <div class="mb-4 bg-slate-50 p-3 rounded border">
-                            <p class="font-bold mb-2">משפט ${id.toUpperCase()}:</p>
-                            <p class="text-slate-700">שורש: <strong>${ans[`q8_${id}_root`] || '-'}</strong> | בניין: <strong>${ans[`q8_${id}_binyan`] || '-'}</strong> | השלמה: <strong>${ans[`q8_${id}_fill`] || '-'}</strong></p>
-                        </div>
-                    `).join('')}
-                    ${displayAns("9. תצורת מילה", 
-                        `אזהרה: ${ans.q9_אזהרה||'-'}, הסלמה: ${ans.q9_הסלמה||'-'}, אטרקציות: ${ans.q9_אטרקציות||'-'}, התעלמות: ${ans.q9_התעלמות||'-'}, מנגנון: ${ans.q9_מנגנון||'-'}, איכות: ${ans.q9_איכות||'-'}`)}
-                    ${displayAns("10. מילות קישור", `א: ${ans.q10a||'-'}\nב: ${ans.q10b||'-'}\nג: ${ans.q10c||'-'}`)}
-                </div>
-            </div>
-        </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-        <div class="w-full md:w-1/3 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
-            <div class="bg-blue-50 p-4 border-b border-blue-100 flex justify-between items-center shrink-0">
-                <h2 class="font-bold text-blue-900 text-xl">פאנל מתן ציונים</h2>
-                <div class="text-2xl font-black text-blue-700 bg-white px-4 py-1 rounded-full shadow-sm border border-blue-200">
-                    <span id="totalScoreDisplay">${calculateCurrentScore()}</span> <span class="text-sm font-normal text-slate-500">/ 100</span>
-                </div>
-            </div>
+            document.getElementById('modal-ok').onclick = () => {
+                document.getElementById('custom-modal').remove();
+                if (onConfirm) onConfirm();
+            };
+
+            if (isConfirm) {
+                document.getElementById('modal-cancel').onclick = () => {
+                    document.getElementById('custom-modal').remove();
+                };
+            }
+        };
+
+        // --- Helper functions for teacher review ---
+        function translateType(val) {
+            if(val === 'root') return 'שורש ומשקל';
+            if(val === 'base') return 'בסיס וצורן';
+            if(val === 'loan') return 'שאילה מלעז';
+            return 'לא סומן';
+        }
+
+        // --- State Management ---
+        const EXAM_DURATION = 112.5 * 60; // 112.5 minutes in seconds
+        const EXTRA_TIME_MULTIPLIER = 1.15;
+        const TEACHER_LOGIN_CODE = "210286";
+        const TEACHER_UNLOCK_CODE = "014371";
+
+        let state = {
+            view: 'login', // login, instructions, exam, summary, submitted, teacher_dash, teacher_review
+            user: { role: null, name: '', id: '', classRoom: '', instCode: '', extraTime: false },
+            exam: {
+                section: 1, // 1, 2, 3
+                timeRemaining: 0,
+                timerInterval: null,
+                isLocked: false,
+                answers: JSON.parse(localStorage.getItem('exam_answers')) || {},
+                marked: JSON.parse(localStorage.getItem('exam_marked')) || {}
+            },
+            internalCopy: false,
+            currentReview: null // Holds the student data being reviewed by the teacher
+        };
+
+        // --- Core Application Logic ---
+        const appDiv = document.getElementById('app');
+
+        function render() {
+            let html = '';
             
-            <div class="p-3 bg-slate-50 border-b shrink-0 flex gap-2">
-                 <button onclick="aiGradeSimulation()" class="flex-1 bg-purple-100 text-purple-800 hover:bg-purple-200 py-2 rounded-lg font-bold flex justify-center items-center gap-2 transition border border-purple-200">
-                     <i class="fas fa-robot"></i> הצעת ציון אוטומטית (AI)
-                 </button>
-            </div>
+            // Render specific view
+            switch(state.view) {
+                case 'login': html = getLoginHtml(); break;
+                case 'instructions': html = getInstructionsHtml(); break;
+                case 'exam': html = getExamHtml(); break;
+                case 'summary': html = getSummaryHtml(); break;
+                case 'submitted': html = getSubmittedHtml(); break;
+                case 'teacher_dash': html = getTeacherDashHtml(); break;
+                case 'teacher_review': html = getTeacherReviewHtml(); break;
+            }
 
-            <div class="flex-1 overflow-y-auto p-4 space-y-5 bg-slate-50/50">
-                ${gradeBoxHtml('q1a', 10, "1א (10 נק')")}
-                ${gradeBoxHtml('q1b', 10, "1ב (10 נק')")}
-                ${gradeBoxHtml('q2', 20, "2 (20 נק')")}
-                ${gradeBoxHtml('q3', 20, "3 (20 נק')")}
-                ${gradeBoxHtml('q4', 10, "4 (10 נק')")}
-                ${gradeBoxHtml('q5', 10, "5 מילים (10 נק')")}
-                ${gradeBoxHtml('q6', 20, "6 (20 נק')")}
-                <div class="border-t border-slate-300 my-4"></div>
-                ${gradeBoxHtml('essay', 25, "חיבור (25 נק')")}
-                <div class="border-t border-slate-300 my-4"></div>
-                ${gradeBoxHtml('lashon', 25, "לשון (25 נק')")}
+            appDiv.innerHTML = html;
+            updateHeader();
+
+            // Lock screen overlay
+            if (state.exam.isLocked && state.view === 'exam') {
+                appDiv.innerHTML += getLockScreenHtml();
+            }
+
+            attachEventListeners();
+        }
+
+        function updateHeader() {
+            const headerControls = document.getElementById('header-controls');
+            if (state.view === 'exam' || state.view === 'summary') {
+                const mins = Math.floor(state.exam.timeRemaining / 60).toString().padStart(2, '0');
+                const secs = (state.exam.timeRemaining % 60).toString().padStart(2, '0');
+                const timeColor = state.exam.timeRemaining < 300 ? 'text-red-300 animate-pulse' : 'text-white';
                 
-                <div class="bg-red-50 p-4 rounded-xl border border-red-200 mt-6">
-                    <label class="font-bold text-red-800 block mb-2">הפחתת נקודות (קנס):</label>
-                    <input type="number" min="0" max="100" class="w-full border-2 border-red-200 p-2 rounded-lg outline-none focus:border-red-500 bg-white font-bold" oninput="updatePenalty(this.value)" value="${currentPenalty || ''}" placeholder="0">
+                headerControls.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="font-bold text-sm">${state.user.name} | ${state.user.id}</p>
+                            <p class="text-xs opacity-80">כיתה: ${state.user.classRoom}</p>
+                        </div>
+                        <div class="bg-blue-800 px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-700">
+                            <i class="fas fa-clock ${timeColor}"></i>
+                            <span class="text-xl font-mono font-bold ${timeColor}" dir="ltr">${mins}:${secs}</span>
+                        </div>
+                    </div>
+                `;
+            } else if (state.view === 'teacher_dash' || state.view === 'teacher_review') {
+                headerControls.innerHTML = `
+                    <button id="btn-logout" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow transition">
+                        <i class="fas fa-sign-out-alt ml-2"></i>יציאה
+                    </button>
+                `;
+            } else {
+                headerControls.innerHTML = '';
+            }
+        }
+
+        // --- HTML Generators ---
+
+        function getLoginHtml() {
+            return `
+                <div class="max-w-4xl mx-auto w-full mt-10">
+                    <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col md:flex-row">
+                        <!-- Student Login -->
+                        <div class="p-8 md:w-1/2 border-l border-gray-200">
+                            <h2 class="text-2xl font-bold text-blue-900 mb-6 border-b pb-2"><i class="fas fa-user-graduate ml-2"></i>כניסת תלמיד</h2>
+                            <form id="student-login-form" class="space-y-4">
+                                <div><label class="block text-sm font-medium mb-1">שם מלא</label><input type="text" id="stu-name" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                <div><label class="block text-sm font-medium mb-1">מספר סידורי</label><input type="text" id="stu-id" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                <div class="flex gap-4">
+                                    <div class="w-1/2"><label class="block text-sm font-medium mb-1">כיתה</label><input type="text" id="stu-class" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                    <div class="w-1/2"><label class="block text-sm font-medium mb-1">סמל מוסד</label><input type="text" id="stu-inst" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                </div>
+                                <div class="pt-2 flex items-center gap-2 bg-blue-50 p-3 rounded">
+                                    <input type="checkbox" id="stu-extra" class="w-5 h-5 text-blue-600">
+                                    <label for="stu-extra" class="font-medium text-blue-900">אני זכאי/ת לתוספת זמן (15%)</label>
+                                </div>
+                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded mt-4 transition">התחברות לבחינה</button>
+                            </form>
+                        </div>
+                        
+                        <!-- Teacher Login -->
+                        <div class="p-8 md:w-1/2 bg-gray-50">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2"><i class="fas fa-chalkboard-teacher ml-2"></i>כניסת מורה (מנהל מערכת)</h2>
+                            <form id="teacher-login-form" class="space-y-4">
+                                <div><label class="block text-sm font-medium mb-1">סמל מוסד</label><input type="text" id="tea-inst" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                <div><label class="block text-sm font-medium mb-1">קוד בחינה</label><input type="password" id="tea-code" required class="w-full border rounded p-2 focus:ring focus:ring-blue-200"></div>
+                                <button type="submit" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 rounded mt-4 transition">כניסה למערכת הבדיקה</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getInstructionsHtml() {
+            return `
+                <div class="max-w-3xl mx-auto w-full mt-10 glass-panel rounded-xl p-8 border border-gray-200">
+                    <h2 class="text-3xl font-bold text-center text-blue-900 mb-6">הוראות הבחינה</h2>
+                    
+                    <div class="bg-blue-50 border border-blue-200 p-6 rounded-lg mb-6 text-blue-900">
+                        <ul class="space-y-3 font-medium text-lg list-disc list-inside">
+                            <li><strong>משך הבחינה:</strong> שעתיים וחצי (שעה לימודית = 45 דקות). ${state.user.extraTime ? '<span class="text-green-600">(כולל תוספת זמן של 15%)</span>' : ''}</li>
+                            <li><strong>מבנה השאלון:</strong></li>
+                            <ul class="mr-6 space-y-1 list-circle opacity-90">
+                                <li>פרק א - הבנת הנקרא (50 נקודות)</li>
+                                <li>פרק ב - חיבור (25 נקודות)</li>
+                                <li>פרק ג - לשון (25 נקודות)</li>
+                            </ul>
+                            <li><strong>סה"כ נקודות:</strong> 100 נקודות</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-red-50 border border-red-200 p-6 rounded-lg mb-8 text-red-900">
+                        <h3 class="font-bold mb-2"><i class="fas fa-exclamation-triangle ml-2"></i>הנחיות חשובות ואבטחה:</h3>
+                        <ul class="space-y-2 list-disc list-inside text-sm">
+                            <li>יש לענות על כל השאלות בגוף השאלון במערכת.</li>
+                            <li>ניתן לגרור מילים או להעתיק טקסט <strong>מתוך קטע הקריאה בלבד</strong>. אין להדביק טקסט ממקורות חיצוניים.</li>
+                            <li>הקפידו על כתיב, פיסוק וכללי דקדוק.</li>
+                            <li><strong>הבחינה מתבצעת במסך מלא. יציאה ממסך מלא תנעל את המבחן ותדרוש התערבות מורה!</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="text-center">
+                        <button id="btn-start-exam" class="bg-green-600 hover:bg-green-700 text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg transition transform hover:scale-105">
+                            <i class="fas fa-play ml-2"></i>התחל בחינה
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        const readingText = `
+            <div class="selectable-text leading-relaxed text-lg space-y-6">
+                <h3 class="text-2xl font-bold text-center mb-6">החיים בעיר המודרנית – בין איכות חיים להסלמה</h3>
+                <p><strong>פסקה א:</strong> בעשורים האחרונים הפכה העיר המודרנית למקום שבו חיים מיליוני אנשים בצפיפות גבוהה, ובו מתקיימים בו־זמנית תעשייה, מסחר, תרבות ופנאי. רשויות רבות מדגישות את חשיבות איכות החיים של התושבים, אך בפועל נוצרת לעיתים אחידות חיצונית בלבד – אותם קניונים, אותן שכונות ואותו מבנה רחובות – בלי תשומת לב מספקת לצרכים הייחודיים של כל קהילה. במקרים רבים פועלות בעיר רשויות מקומיות שונות, שלכל אחת מהן תקציב, סדרי עדיפויות ויכולת אכיפה משלה, ולכן לא פעם מתעוררות מחלוקות בין תושבים לבין הרשות באשר לאחריות על מיפגעי רעש, זיהום או עומסי תנועה.</p>
+                <p><strong>פסקה ב:</strong> אחד הנושאים המרכזיים בדיון הציבורי הוא השאלה עד כמה העיר מצליחה ליצור תנאים התומכים בחֹסֶן נפשי של התושבים. מחקרים מצביעים על כך שחיים בסביבה רועשת, עמוסת תנועה ותעשייה, עלולים להגביר תחושות של לחץ ואף להוביל לדיכאון בקרב קבוצות מסוימות. תושבים אלה נחשבים לעיתים קבוצת סיכון, במיוחד כאשר הם נתקלים שוב ושוב בבעיות חוזרות – כמו כבישים מסוכנים, משאבת מים מקולקלת בבניין או דליפה חוזרת במערכת הביוב – בלי לקבל פתרון יעיל. במצבים כאלה מתפתחת אצל רבים תחושה של מודעות גבוהה לבעיה, אך גם ייאוש, והם מרגישים שהעיר מתעלמת מן הצרכים שלהם.</p>
+                <p><strong>פסקה ג:</strong> במטרה להתמודד עם בעיות אלו, קובעת הרשות המקומית תקנות שונות שנועדו לצמצם נזק ולהסדיר את החיים המשותפים. תקנות אלה כוללות, למשל, הגבלת שעות המנוחה שבהן אסור להפעיל מכשירים רועשים, או קביעה של קנסות כבדים לבעלי עסקים שמפרים שוב ושוב את כללי הבטיחות. לעיתים מוחלט אף על מצב חירום נקודתי בשכונה מסוימת, בעקבות הסלמה ברמת הרעש או הזיהום. אלא שלא תמיד התקנות מיושמות באופן אפקטיבי; חלק מן התושבים טוענים שמנגנון הפיקוח מסורבל, שהעונשים במקרים רבים אינם עוברים ממינימום מסוים, ושהרשות נוטה לגלות סבלנות מופרזת כלפי גורמים פוגעניים.</p>
+                <p><strong>פסקה ד:</strong> העיר המודרנית מפעילה מנגנון אכיפה מורכב, שבמסגרתו פועלים פקחים, מהנדסים ויועצים משפטיים. מצד אחד, הרשות חייבת לאכוף את התקנות, לטפל בכל תלונה של תושב ולדאוג שלא יתפתחו אירועים קיצוניים. מצד אחר, ישנו חשש שהקצנה במדיניות האכיפה – למשל הטלת מאסר מהיר על בעלי עסקים או עימותים פיזיים עם תושבים – תוביל דווקא להסלמה ביחסים ביניהם ובין הרשות. כדי להימנע מכך מנסים ברשויות רבות ליישם מדיניות הדרגתית: תחילה משלחים אזהרה, אחר כך מוטל קנס, ורק במקרה של הפרה חוזרת ונשנית שוקלים צעדים חמורים יותר. למרבה הצער, לא כל הצדדים מוכנים לשתף פעולה, ולעיתים מתפתחים סכסוכים ארוכים.</p>
+                <p><strong>פסקה ה:</strong> בעידן הרשתות החברתיות מתפתחת תופעה חדשה: תושבים משתמשים בפלטפורמות מקוונות כדי לפרסם ביקורת על הרשות המקומית, לחשוף הדלפה של מסמכים פנימיים ולשתף סרטונים המתעדים סחרחורת של רעש וזיהום באזורים מסוימים. סרטונים אלו עשויים להרתיח את הציבור וליצור רושם שהמצב בעיר בלתי נסבל, גם אם בפועל מדובר במספר מצומצם של מיפגעים. במקרים מסוימים, עצם פרסום הסרטונים תורם להקצנה של עמדות: חלק מן התושבים מגבשים דעה קדומה שלפיה כל נציג ציבור מושחת או אדיש, ואחרים מתעלמים מכל שיפור שחל בשטח. יחד עם זאת, הודות ללחץ הציבורי ברשת, רשויות מסוימות החלו לפעול בשקיפות גבוהה יותר ולפרסם מידע ברור לגבי התלונות שהתקבלו והטיפול בהן.</p>
+                <p><strong>פסקה ו:</strong> הדיון הציבורי אינו מתמקד רק בנתונים, אלא גם בשפה שבה משתמשים הצדדים. כך, למשל, יש הבדל בין תיאור מפעל כגורם בוטה ל"זיהום אוויר מסוים", לבין הצגתו כ"סכנה בריאותית חמורה לתושבי האזור". בחירה במילים חריפות עשויה להיתפס כהגזמה או כהפלגה, אך לעיתים מילים אלו נועדו להחמיר בכוונה את התיאור כדי לעורר את הציבור לפעולה. יש תושבים הסבורים כי כדאי להימנע מהקצנה בשיח ולהעדיף טענה עניינית, מבוססת נתונים. אחרים מאמינים שבלי שפה חריפה לא יקשיבו להם. לפיכך, השאלה כיצד לדבר על הבעיות בעיר הופכת לחלק בלתי נפרד מן הוויכוח הציבורי על איכות החיים.</p>
+                
+                <div class="mt-8 p-4 bg-gray-100 rounded border-r-4 border-gray-400">
+                    <h4 class="font-bold mb-2">קטע נוסף (לשאלה 6): רמת רעש בעיר</h4>
+                    <p class="text-sm">בעיר מסוימת הותקן בשנים האחרונות מנגנון מדידה חדש, הבוחן את רמת הרעש ברחובות מרכזיים במשך כל שעות היממה. הנתונים הראו כי בשל עבודות תעשייה ליליות, תחבורה כבדה ומקומות בילוי, רמת הרעש בשכונות סמוכות עלתה בהרבה מעל הסף שנקבע בתקנות. בעקבות זאת הכריזה הרשות המקומית על מצב חירום זמני בשתי שכונות, הגבילה את פעילות העסקים בשעות מאוחרות והטילה קנסות על מי שהמשיך להפעיל ציוד רועש. חלק מן התושבים טענו שהצעדים הללו פוגעים בחופש העיסוק, ואחרים טענו שהרשות נמנעה במשך שנים מלטפל בבעיה, ולכן הצעדים כעת הם רק מינימום נדרש לשיפור המצב.</p>
                 </div>
             </div>
+        `;
 
-            <div class="p-4 bg-white border-t shrink-0">
-                <button onclick="saveGrading()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-md transition-transform hover:scale-[1.02] flex justify-center items-center gap-2 text-lg">
-                    <i class="fas fa-save"></i> שמור ציון וסיים בדיקה
-                </button>
-            </div>
-        </div>
-    </div>`;
-}
+        function getExamHtml() {
+            let sectionContent = '';
+            
+            if (state.exam.section === 1) {
+                sectionContent = `
+                    <div class="flex flex-col md:flex-row h-full gap-6">
+                        <!-- Left: Questions -->
+                        <div class="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[70vh]">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="text-2xl font-bold text-blue-900">פרק ראשון – הבנת הנקרא (50 נק')</h2>
+                            </div>
+                            <p class="text-sm text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">ניתן להקליד תשובות או לגרור טקסט מסומן מהקטע שמשמאל לתוך תיבות הטקסט.</p>
+                            
+                            <div class="space-y-8">
+                                ${generateMCQ('1a', '1. א. על פי פסקה א, מהי אחת הטענות המרכזיות של המחבר לגבי האופן שבו מתוכננות ערים מודרניות? (10 נק\')', [
+                                    'הערים המודרניות מצליחות ליצור מגוון רחב של סגנונות חיים שונים.',
+                                    'הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.',
+                                    'הרשויות המקומיות אינן אחראיות כלל על תכנון הרחובות והשכונות.',
+                                    'תושבי הערים מעדיפים לחיות במקומות שקטים ומנותקים מתעשייה.'
+                                ])}
+                                ${generateMCQ('1b', 'ב. על פי פסקה ב, מה עלול להוביל לירידה בחוסן הנפשי של התושבים? (10 נק\')', [
+                                    'מגורים בשכונות שקטות מדי, ללא אירועי תרבות.',
+                                    'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.',
+                                    'שימוש מוגבר ברשתות החברתיות בזמן שעות המנוחה.',
+                                    'אכיפה קפדנית של תקנות העירייה.'
+                                ])}
+                                
+                                <div class="bg-gray-50 p-4 rounded border">
+                                    <h3 class="font-bold mb-3">2. א. על פי פסקה ג, ציינו: (10 נק')</h3>
+                                    ${generateTextarea('2a1', 'שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר את איכות החיים:')}
+                                    ${generateTextarea('2a2', 'טענה אחת של חלק מן התושבים לגבי יישום התקנות בפועל:')}
+                                </div>
 
-function gradeBoxHtml(id, max, label) {
-    return `
-    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-        <div class="flex justify-between items-center mb-3">
-            <label class="font-bold text-slate-800">${label}</label>
-            <input type="number" min="0" max="${max}" class="w-20 border-2 border-slate-200 bg-slate-50 text-center font-bold text-lg p-1.5 rounded-lg outline-none focus:border-blue-500 focus:bg-white transition-colors" oninput="updateGrade('${id}', this.value)" value="${currentGrades[id] !== undefined ? currentGrades[id] : ''}" placeholder="0">
-        </div>
-        <textarea class="w-full text-sm border border-slate-200 p-2 rounded-lg bg-slate-50 outline-none focus:bg-white transition-colors" placeholder="הערות למורה/תלמיד..." oninput="updateComment('${id}', this.value)" rows="1">${currentComments[id] || ''}</textarea>
-    </div>`;
-}
+                                ${generateTextarea('2b', 'ב. על פי פסקה ד, תארו בקצרה את מדיניות האכיפה ההדרגתית המתוארת במאמר. (10 נק\')')}
+                                ${generateTextarea('3a', '3. א. על פי פסקה ה, מה יכולה להיות גם תועלת חיובית בפרסום סרטונים ברשתות החברתיות? (10 נק\')')}
+                                ${generateTextarea('3b', 'ב. על פי המאמר כולו, מהי עמדת הכותב כלפי שימוש בשפה חריפה בדיון הציבורי? נמקו. (10 נק\')')}
 
-function updateGrade(id, val) {
-    currentGrades[id] = Number(val);
-    document.getElementById('totalScoreDisplay').innerText = calculateCurrentScore();
-}
+                                ${generateMCQ('4a', '4. א. על פי המאמר כולו, מהי המטרה העיקרית של המאמר? (10 נק\')', [
+                                    'לשכנע את הקוראים לעבור לגור בכפר במקום בעיר.',
+                                    'לתאר את מנגנוני האכיפה המשפטית במדינה.',
+                                    'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.',
+                                    'להציג נתונים סטטיסטיים על מצב הדיכאון בקרב צעירים.'
+                                ])}
+                                
+                                ${generateInput('4b', 'ב. מהי הכוונה במילה "משלה" במשפט מפסקה א ("...יכולת אכיפה משלה...")?')}
+                                
+                                <div class="bg-gray-50 p-4 rounded border">
+                                    <h3 class="font-bold mb-3">5. בחרו שתי מילים מן הרשימה, כתבו פירוש ומשפט חדש (10 נק'):</h3>
+                                    <p class="text-sm text-gray-600 mb-2">המילים לבחירה: מיפגע, הסלמה, חוסן נפשי, דעה קדומה, תקנות, מודעות</p>
+                                    <div class="space-y-4">
+                                        <div class="border-b pb-2">
+                                            ${generateInput('5w1', 'מילה 1:')}
+                                            ${generateInput('5m1', 'פירוש:')}
+                                            ${generateInput('5s1', 'משפט חדש:')}
+                                        </div>
+                                        <div>
+                                            ${generateInput('5w2', 'מילה 2:')}
+                                            ${generateInput('5m2', 'פירוש:')}
+                                            ${generateInput('5s2', 'משפט חדש:')}
+                                        </div>
+                                    </div>
+                                </div>
 
-function updateComment(id, val) {
-    currentComments[id] = val;
-}
+                                ${generateTextarea('6a', '6. א. (על פי הקטע הנוסף ופסקה ג) הסבירו כיצד מסייעות התקנות והקנסות להתמודד עם בעיית הרעש? (10 נק\')')}
+                                ${generateTextarea('6b', '6. ב. (על פי הקטע הנוסף ופסקה ב) הסבירו מדוע יכולים חלק מן התושבים לראות ברעש מתמשך גורם המסכן את החוסן הנפשי שלהם? (10 נק\')')}
+                            </div>
+                        </div>
 
-function updatePenalty(val) {
-    currentPenalty = Number(val);
-    document.getElementById('totalScoreDisplay').innerText = calculateCurrentScore();
-}
+                        <!-- Right: Sticky Text -->
+                        <div class="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[70vh] border-r-4 border-blue-500">
+                            ${readingText}
+                        </div>
+                    </div>
+                `;
+            } else if (state.exam.section === 2) {
+                sectionContent = `
+                    <div class="bg-white p-8 rounded-lg shadow-sm max-w-4xl mx-auto">
+                        <h2 class="text-2xl font-bold text-blue-900 mb-6">פרק שני – חיבור (25 נקודות)</h2>
+                        <p class="mb-6 font-medium">ענו על שאלה 7. בחרו נושא אחד (א, ב או ג) וסמנו אותו. אורך החיבור: 10–15 שורות. הקפידו על ניסוח ברור, דוגמאות, לשון תקינה ופיסוק.</p>
+                        
+                        <div class="space-y-6 mb-8 bg-gray-50 p-6 rounded-lg border">
+                            <div class="flex items-start gap-3">
+                                <input type="checkbox" id="topic_a" class="mt-1 w-5 h-5 topic-check" onchange="handleTopicCheck(this)">
+                                <div>
+                                    <strong class="text-lg">נושא א: בחירת מקצוע לעתיד.</strong>
+                                    <p class="text-sm mt-1">לקראת סיום הלימודים, תלמידים עומדים בפני בחירת מקצוע. האם לבחור מקצוע מעניין? מתאים לכישורים? או מבטיח הכנסה גבוהה? כתבו חיבור, הביעו דעתכם, בחרו 2 שיקולים חשובים, נמקו והביאו דוגמאות.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 border-t pt-4">
+                                <input type="checkbox" id="topic_b" class="mt-1 w-5 h-5 topic-check" onchange="handleTopicCheck(this)">
+                                <div>
+                                    <strong class="text-lg">נושא ב: התמכרות בני הנוער למשחקי מחשב.</strong>
+                                    <p class="text-sm mt-1">משחקי מחשב פופולאריים, אך התמכרות עלולה לפגוע. פרטו 2 סיבות להתמכרות והציעו דרכי התמודדות. הביאו דוגמאות.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 border-t pt-4">
+                                <input type="checkbox" id="topic_c" class="mt-1 w-5 h-5 topic-check" onchange="handleTopicCheck(this)">
+                                <div>
+                                    <strong class="text-lg">נושא ג: אירוע מפחיד ועצוב שחוויתם.</strong>
+                                    <p class="text-sm mt-1">תארו אירוע שגרם לכם לחוות חרדה, עצב או שניהם. ספרו על המחשבות, הרגשות ודרך ההתמודדות.</p>
+                                </div>
+                            </div>
+                        </div>
 
-function calculateCurrentScore() {
-    let sum = Object.values(currentGrades).reduce((a, b) => a + (Number(b) || 0), 0);
-    return Math.max(0, sum - (Number(currentPenalty) || 0));
-}
+                        <div>
+                            <label class="block font-bold mb-2">כתיבת החיבור (טיוטה וכתיבה סופית):</label>
+                            <textarea id="ans_essay" class="w-full h-80 border rounded-lg p-4 focus:ring-2 focus:ring-blue-400 outline-none resize-none leading-loose text-lg" placeholder="התחל לכתוב כאן... (המערכת שומרת אוטומטית)" oninput="saveAnswer('essay', this.value)"></textarea>
+                        </div>
+                    </div>
+                `;
+            } else if (state.exam.section === 3) {
+                sectionContent = `
+                    <div class="bg-white p-8 rounded-lg shadow-sm max-w-4xl mx-auto h-[70vh] overflow-y-auto">
+                        <h2 class="text-2xl font-bold text-blue-900 mb-6">פרק שלישי – לשון (25 נקודות)</h2>
+                        
+                        <!-- Part A -->
+                        <div class="mb-10">
+                            <h3 class="text-xl font-bold mb-4 bg-gray-100 p-2 rounded">חלק א – הפועל (15 נק')</h3>
+                            <p class="mb-4 text-sm text-red-600 font-bold">* יש לענות על כל הסעיפים.</p>
+                            
+                            <div class="space-y-6">
+                                ${generateVerbQuestion('8a', 'א. רשויות רבות <strong>מַדְגִּישׁוֹת</strong> את חשיבות איכות החיים.', 'הפעיל', 'המורה __________ את הנקודה המרכזית בשיעור.')}
+                                ${generateVerbQuestion('8b', 'ב. לא פעם <strong>מִתְעוֹרְרוֹת</strong> מחלוקות.', 'פועל', 'הרעש החזק __________ את התושבים בלילה.')}
+                                ${generateVerbQuestion('8c', 'ג. מחקרים <strong>מַצְבִּיעִים</strong> על כך שחיים בסביבה רועשת מזיקים.', 'הופעל', 'במחקר זה __________ על קשר בין רעש לבריאות.')}
+                                ${generateVerbQuestion('8d', 'ד. הרשות <strong>קוֹבַעַת</strong> תקנות שונות.', 'נפעל', 'גובה הקנס _____________ אחרי בית המשפט בחודש הבא.')}
+                                ${generateVerbQuestion('8e', 'ה. התושבים <strong>מִשְׁתַּמְּשִׁים</strong> בפלטפורמות.', 'פיעל', 'הטכנולוגיה __________ את התושבים לצורך שיתוף מידע.')}
+                            </div>
+                        </div>
 
-function aiGradeSimulation() {
-    const sub = submissions.find(s => s.id === selectedSubmissionId);
-    const ans = sub.answers;
-    
-    // Auto mark closed questions
-    if(ans.q1a && ans.q1a.includes("אחידות חיצונית")) currentGrades.q1a = 10; else currentGrades.q1a = 0;
-    if(ans.q1b && ans.q1b.includes("סביבה רועשת ומזוהמת")) currentGrades.q1b = 10; else currentGrades.q1b = 0;
-    if(ans.q4a && ans.q4a.includes("לדון במתח")) currentGrades.q4a = 10; else currentGrades.q4a = 0;
-    
-    // Essay length simulation
-    if(ans.essayText && ans.essayText.length > 200) { currentGrades.essay = 23; currentComments.essay = '🤖 AI: אורך חיבור תקין, כתיבה זורמת. מומלץ לבדוק פיסוק ידנית.'; }
-    
-    let lashonScore = 0;
-    if(ans.q8_a_root === 'ד-ג-ש') lashonScore+=5;
-    if(ans.q9_אזהרה === 'בסיס_וצורן') lashonScore+=5;
-    if(ans.q10a === 'אבל') lashonScore+=5;
-    currentGrades.lashon = lashonScore > 0 ? lashonScore + 10 : 0;
-    
-    render(); 
-    showModal('AI Assistant', 'הצעת הציון הוזנה לתיבות (בדיקה אוטומטית של שאלות סגורות והערכת חיבור). אנא עברו ואשרו ידנית.', true);
-}
+                        <!-- Part B -->
+                        <div class="mb-10">
+                            <h3 class="text-xl font-bold mb-4 bg-gray-100 p-2 rounded">חלק ב – שם העצם ומבנה המילה (4 נק')</h3>
+                            <p class="text-sm mb-4">קראו את הקטע וענו: בחרו 4 מילים בלבד ומיינו אותן בטבלה.</p>
+                            <p class="bg-blue-50 p-3 rounded mb-4 text-sm">"הרשות פרסמה <strong>אזהרה</strong> <strong>רשמית</strong> בעקבות <strong>הסלמה</strong>... כי <strong>התעלמות</strong> תיחשב הפרה... כי יופעל <strong>מנגנון</strong> פיקוח... <strong>פלטפורמות</strong> מקוונות..."</p>
+                            
+                            <table class="w-full text-center border-collapse border border-gray-300">
+                                <thead>
+                                    <tr class="bg-gray-200">
+                                        <th class="border p-2 w-1/4">מילה</th>
+                                        <th class="border p-2">שורש ומשקל</th>
+                                        <th class="border p-2">בסיס וצורן</th>
+                                        <th class="border p-2">שאילה מלעז</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${[1,2,3,4].map(i => `
+                                        <tr>
+                                            <td class="border p-2"><input type="text" id="ans_9w${i}" class="w-full text-center border-b outline-none" oninput="saveAnswer('9w${i}', this.value)" value="${state.exam.answers['9w'+i] || ''}"></td>
+                                            <td class="border p-2"><input type="radio" name="9t${i}" value="root" onchange="saveAnswer('9t${i}', 'root')" ${state.exam.answers['9t'+i] === 'root' ? 'checked' : ''} class="w-4 h-4"></td>
+                                            <td class="border p-2"><input type="radio" name="9t${i}" value="base" onchange="saveAnswer('9t${i}', 'base')" ${state.exam.answers['9t'+i] === 'base' ? 'checked' : ''} class="w-4 h-4"></td>
+                                            <td class="border p-2"><input type="radio" name="9t${i}" value="loan" onchange="saveAnswer('9t${i}', 'loan')" ${state.exam.answers['9t'+i] === 'loan' ? 'checked' : ''} class="w-4 h-4"></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
 
-function saveGrading() {
-    const index = submissions.findIndex(s => s.id === selectedSubmissionId);
-    if(index > -1) {
-        submissions[index].grades = currentGrades;
-        submissions[index].comments = currentComments;
-        submissions[index].penalty = currentPenalty;
-        submissions[index].finalScore = calculateCurrentScore();
-        submissions[index].graded = true;
+                        <!-- Part C -->
+                        <div>
+                            <h3 class="text-xl font-bold mb-4 bg-gray-100 p-2 rounded">חלק ג – מילות קישור (6 נק')</h3>
+                            <div class="space-y-6">
+                                ${generateMCQ('10a', 'א. הקיפו מילת קישור מתאימה: התושבים מרגישים תנאים טובים, _______ אחרים טוענים שבלתי נסבל.', ['אבל', 'מכיוון ש', 'לכן', 'כדי ש'])}
+                                ${generateMCQ('10b', 'ב. הקיפו מילת קישור מתאימה: הרשות הגבילה שעות, _______ להפחית רעש.', ['אף על פי ש', 'כדי', 'למרות', 'או'])}
+                                ${generateMCQ('10c', 'ג. החליפו מילת קישור (אבל) במילה נרדפת: התושבים ביקשו פעולה, אבל המשיכו לסבול.', ['למרות זאת', 'משום כך', 'כדי ש', 'או'])}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="flex-grow flex flex-col">
+                    <!-- Exam Content -->
+                    <div class="flex-grow mb-6">
+                        ${sectionContent}
+                    </div>
+                    
+                    <!-- Navigation Footer -->
+                    <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center sticky bottom-0">
+                        <button onclick="navigateSection(-1)" class="${state.exam.section === 1 ? 'invisible' : ''} bg-gray-200 hover:bg-gray-300 px-6 py-2 rounded transition">
+                            <i class="fas fa-arrow-right ml-2"></i>פרק קודם
+                        </button>
+                        
+                        <div class="flex gap-2">
+                            <span class="w-3 h-3 rounded-full ${state.exam.section === 1 ? 'bg-blue-600' : 'bg-gray-300'}"></span>
+                            <span class="w-3 h-3 rounded-full ${state.exam.section === 2 ? 'bg-blue-600' : 'bg-gray-300'}"></span>
+                            <span class="w-3 h-3 rounded-full ${state.exam.section === 3 ? 'bg-blue-600' : 'bg-gray-300'}"></span>
+                        </div>
+
+                        ${state.exam.section === 3 ? 
+                            `<button onclick="state.view = 'summary'; render();" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded transition font-bold">
+                                סיום ומעבר להגשה<i class="fas fa-check mr-2"></i>
+                            </button>` 
+                            : 
+                            `<button onclick="navigateSection(1)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded transition">
+                                פרק הבא<i class="fas fa-arrow-left mr-2"></i>
+                            </button>`
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        // Exam Question Helpers
+        function generateMCQ(id, text, options) {
+            let optsHtml = options.map((opt, i) => `
+                <label class="flex items-center gap-2 p-2 hover:bg-blue-50 rounded cursor-pointer border border-transparent hover:border-blue-200 transition">
+                    <input type="radio" name="${id}" value="${i}" onchange="saveAnswer('${id}', '${opt}')" ${state.exam.answers[id] === opt ? 'checked' : ''} class="w-4 h-4 text-blue-600">
+                    <span>${opt}</span>
+                </label>
+            `).join('');
+            
+            return `
+                <div class="mb-6 relative">
+                    <button onclick="toggleMark('${id}')" class="absolute left-0 top-0 text-gray-400 hover:text-yellow-500 ${state.exam.marked[id] ? 'text-yellow-500' : ''}" title="סמן לבדיקה חוזרת"><i class="fas fa-star"></i></button>
+                    <p class="font-bold mb-3 pr-6">${text}</p>
+                    <div class="space-y-1 pr-6">${optsHtml}</div>
+                </div>
+            `;
+        }
+
+        function generateTextarea(id, text) {
+            return `
+                <div class="mb-6 relative">
+                    <button onclick="toggleMark('${id}')" class="absolute left-0 top-0 text-gray-400 hover:text-yellow-500 ${state.exam.marked[id] ? 'text-yellow-500' : ''}"><i class="fas fa-star"></i></button>
+                    <label class="block font-bold mb-2 pr-6">${text}</label>
+                    <textarea id="ans_${id}" oninput="saveAnswer('${id}', this.value)" class="w-full border rounded p-3 focus:ring focus:ring-blue-200 outline-none min-h-[100px] text-right" placeholder="הקלד או גרור טקסט לכאן...">${state.exam.answers[id] || ''}</textarea>
+                </div>
+            `;
+        }
+
+        function generateInput(id, text) {
+            return `
+                <div class="flex items-center gap-2 mb-2">
+                    <label class="font-medium whitespace-nowrap">${text}</label>
+                    <input type="text" id="ans_${id}" oninput="saveAnswer('${id}', this.value)" value="${state.exam.answers[id] || ''}" class="flex-grow border-b focus:border-blue-500 outline-none px-2 py-1">
+                </div>
+            `;
+        }
+
+        function generateVerbQuestion(idPrefix, titleHtml, binyanText, sentenceText) {
+            return `
+                <div class="border-b pb-4 relative">
+                    <button onclick="toggleMark('${idPrefix}')" class="absolute left-0 top-0 text-gray-400 hover:text-yellow-500 ${state.exam.marked[idPrefix] ? 'text-yellow-500' : ''}"><i class="fas fa-star"></i></button>
+                    <p class="mb-2 pr-6">${titleHtml}</p>
+                    <div class="pr-6 space-y-2 text-sm">
+                        <div class="flex items-center gap-2"><span>(1) שורש:</span><input type="text" oninput="saveAnswer('${idPrefix}_root', this.value)" value="${state.exam.answers[idPrefix+'_root'] || ''}" class="border-b outline-none text-center w-24"></div>
+                        <div class="flex items-center gap-2"><span>(2) בניין:</span><input type="text" oninput="saveAnswer('${idPrefix}_binyan', this.value)" value="${state.exam.answers[idPrefix+'_binyan'] || ''}" class="border-b outline-none text-center w-24"></div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span>(3) פועל אחר באותו שורש בבניין ${binyanText}:</span>
+                            <span class="bg-gray-100 px-2 py-1 rounded w-full mt-1">${sentenceText.replace('__________', `<input type="text" oninput="saveAnswer('${idPrefix}_fill', this.value)" value="${state.exam.answers[idPrefix+'_fill'] || ''}" class="border-b border-gray-400 bg-transparent outline-none text-center font-bold text-blue-700 w-24 mx-1">`)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getLockScreenHtml() {
+            return `
+                <div class="lock-screen">
+                    <i class="fas fa-lock text-6xl text-red-500 mb-6 animate-pulse"></i>
+                    <h2 class="text-4xl font-bold mb-4">הבחינה ננעלה!</h2>
+                    <p class="text-xl mb-8">זוהתה יציאה ממסך מלא או פוקוס.</p>
+                    <p class="text-lg mb-4 text-yellow-300">קרא/י למורה להזנת קוד שחרור:</p>
+                    <input type="password" id="unlock-code" class="text-black text-center text-2xl p-3 rounded-lg border-4 border-red-500 outline-none w-64 mb-4" placeholder="קוד מורה">
+                    <button onclick="attemptUnlock()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition">שחרר נעילה</button>
+                    <p id="unlock-error" class="text-red-400 mt-4 font-bold hidden">קוד שגוי!</p>
+                </div>
+            `;
+        }
+
+        function getSummaryHtml() {
+            // Mapping questions to display their status clearly
+            const questionsMap = [
+                {
+                    chapter: "פרק א' - הבנת הנקרא",
+                    questions: [
+                        { id: '1', title: 'שאלה 1', keys: ['1a', '1b'] },
+                        { id: '2', title: 'שאלה 2', keys: ['2a1', '2a2', '2b'] },
+                        { id: '3', title: 'שאלה 3', keys: ['3a', '3b'] },
+                        { id: '4', title: 'שאלה 4', keys: ['4a', '4b'] },
+                        { id: '5', title: 'שאלה 5', keys: ['5w1', '5m1', '5s1', '5w2', '5m2', '5s2'] },
+                        { id: '6', title: 'שאלה 6', keys: ['6a', '6b'] }
+                    ]
+                },
+                {
+                    chapter: "פרק ב' - חיבור",
+                    questions: [
+                        { id: '7', title: 'שאלה 7 (חיבור)', keys: ['essay'] }
+                    ]
+                },
+                {
+                    chapter: "פרק ג' - לשון",
+                    questions: [
+                        { id: '8', title: 'שאלה 8 (הפועל)', keys: ['8a_root', '8b_root', '8c_root', '8d_root', '8e_root'] },
+                        { id: '9', title: 'שאלה 9 (שם העצם)', keys: ['9w1', '9w2', '9w3', '9w4'] },
+                        { id: '10', title: 'שאלה 10 (מילות קישור)', keys: ['10a', '10b', '10c'] }
+                    ]
+                }
+            ];
+
+            let breakdownHtml = '<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 text-right" dir="rtl">';
+
+            questionsMap.forEach(ch => {
+                breakdownHtml += `<div class="bg-white p-5 rounded-lg shadow-sm border border-blue-100">
+                    <h3 class="font-bold text-lg text-blue-900 border-b-2 border-blue-200 pb-2 mb-4">${ch.chapter}</h3>
+                    <ul class="space-y-3">`;
+                
+                ch.questions.forEach(q => {
+                    let answeredCount = 0;
+                    q.keys.forEach(k => {
+                        const ans = state.exam.answers[k];
+                        if (typeof ans === 'string' && ans.trim() !== '') answeredCount++;
+                        else if (typeof ans === 'boolean' && ans === true) answeredCount++;
+                        else if (ans !== null && ans !== undefined && ans !== '' && typeof ans !== 'string' && typeof ans !== 'boolean') answeredCount++;
+                    });
+                    
+                    let statusHtml = '';
+                    if (answeredCount === q.keys.length) {
+                        statusHtml = '<span class="text-green-600 font-bold text-sm bg-green-50 px-2 py-1 rounded-full"><i class="fas fa-check ml-1"></i> נענה</span>';
+                    } else if (answeredCount > 0) {
+                        statusHtml = '<span class="text-yellow-600 font-bold text-sm bg-yellow-50 px-2 py-1 rounded-full"><i class="fas fa-exclamation-triangle ml-1"></i> חלקי</span>';
+                    } else {
+                        statusHtml = '<span class="text-red-500 font-bold text-sm bg-red-50 px-2 py-1 rounded-full"><i class="fas fa-times ml-1"></i> לא נענה</span>';
+                    }
+
+                    breakdownHtml += `<li class="flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-2 rounded border border-gray-100 transition">
+                        <span class="font-medium text-gray-800">${q.title}</span>
+                        ${statusHtml}
+                    </li>`;
+                });
+                breakdownHtml += `</ul></div>`;
+            });
+            breakdownHtml += '</div>';
+
+            const markedCount = Object.keys(state.exam.marked).filter(k => state.exam.marked[k]).length;
+
+            return `
+                <div class="max-w-5xl mx-auto w-full mt-8 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg mb-8">
+                    <h2 class="text-3xl font-bold text-center text-blue-900 mb-2">סיכום לפני הגשה</h2>
+                    <p class="text-center text-gray-600 mb-8">אנא ודא/י שענית על כל השאלות הנדרשות לפני ההגשה הסופית.</p>
+                    
+                    <!-- Detailed Breakdown -->
+                    ${breakdownHtml}
+
+                    <div class="mt-8 bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-center">
+                        <p class="text-yellow-800 font-bold">
+                            <i class="fas fa-star text-yellow-500 ml-2"></i> שאלות שסומנו לבדיקה חוזרת: ${markedCount}
+                        </p>
+                    </div>
+
+                    <div class="flex justify-between mt-10 border-t pt-8">
+                        <button onclick="state.view='exam'; state.exam.section=1; render();" class="text-blue-600 hover:text-blue-800 font-bold px-6 py-3 border border-blue-200 rounded-lg hover:bg-blue-50 transition">
+                            <i class="fas fa-arrow-right ml-2"></i> חזרה למבחן
+                        </button>
+                        <button id="submit-btn" onclick="window.submitExam()" class="bg-red-600 hover:bg-red-700 text-white text-xl font-bold py-3 px-12 rounded-lg shadow-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
+                            <i class="fas fa-paper-plane"></i> הגש בחינה סופית
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSubmittedHtml() {
+            return `
+                <div class="max-w-2xl mx-auto w-full mt-20 text-center glass-panel rounded-xl p-10 border border-gray-200 shadow-xl">
+                    <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-check text-5xl text-green-600"></i>
+                    </div>
+                    <h2 class="text-4xl font-bold text-gray-800 mb-4">הבחינה הוגשה בהצלחה!</h2>
+                    <p class="text-xl text-gray-600 mb-8">תשובותיך נשמרו במערכת והועברו לבדיקת המורה.</p>
+                    <p class="text-sm text-gray-400">ניתן לסגור חלון זה. להתראות!</p>
+                </div>
+            `;
+        }
+
+        function getTeacherDashHtml() {
+            // משלב גם את המבחנים שנשמרו בענן וגם את הגיבויים המקומיים
+            const localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+            const allData = [...studentsData];
+            
+            localSubmissions.forEach(ls => {
+                if(!allData.find(d => d.studentId === ls.studentId)) {
+                    allData.push({ ...ls, id: ls.studentId, status: 'submitted_local' });
+                }
+            });
+
+            const tableRows = allData.length === 0 
+                ? '<tr><td colspan="6" class="p-6 text-center text-gray-500">עדיין אין מבחנים מוגשים במערכת...</td></tr>'
+                : allData.map(s => {
+                let statusBadge = '';
+                if (s.status === 'submitted') {
+                    statusBadge = '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">הוגש בענן</span>';
+                } else if (s.status === 'submitted_local') {
+                    statusBadge = '<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">הוגש (גיבוי מקומי)</span>';
+                } else {
+                    statusBadge = '<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">בתהליך</span>';
+                }
+
+                let scoreDisplay = (s.score !== null && s.score !== undefined) ? s.score : '-';
+                if(s.score !== null && s.score !== undefined) {
+                    let color = s.score > 80 ? 'text-green-600' : (s.score > 60 ? 'text-yellow-600' : 'text-red-600');
+                    scoreDisplay = `<span class="font-bold ${color}">${s.score}</span>`;
+                }
+                return `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-3">${s.studentId || 'N/A'}</td>
+                        <td class="p-3 font-medium">${s.studentName || 'N/A'}</td>
+                        <td class="p-3">${s.classRoom || '-'}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                        <td class="p-3 text-center">${scoreDisplay}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="viewStudentExam('${s.id || s.studentId}')" class="text-blue-600 hover:text-blue-800" title="בדוק בחינה"><i class="fas fa-search"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            return `
+                <div class="w-full flex-grow flex flex-col mt-4 gap-6">
+                    <div class="flex justify-between items-center bg-white p-4 rounded shadow-sm border border-gray-200">
+                        <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line ml-2"></i>לוח בקרת מורה - 371</h2>
+                        <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex items-center gap-2">
+                            <i class="fas fa-file-excel"></i>ייצוא נתונים
+                        </button>
+                    </div>
+
+                    <div class="flex gap-6">
+                        <!-- Left: Student List -->
+                        <div class="w-2/3 bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
+                            <table class="w-full text-right">
+                                <thead class="bg-gray-100 border-b">
+                                    <tr>
+                                        <th class="p-3 font-semibold">ת.ז</th>
+                                        <th class="p-3 font-semibold">שם התלמיד</th>
+                                        <th class="p-3 font-semibold">כיתה</th>
+                                        <th class="p-3 font-semibold text-center">סטטוס</th>
+                                        <th class="p-3 font-semibold text-center">ציון</th>
+                                        <th class="p-3 font-semibold text-center">פעולות</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Right: Analytics Panel -->
+                        <div class="w-1/3 space-y-6">
+                            <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
+                                <h3 class="font-bold border-b pb-2 mb-4">התפלגות ציונים</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-16 text-sm">81 - 100</div>
+                                        <div class="flex-grow bg-gray-200 rounded-full h-4 overflow-hidden">
+                                            <div class="bg-green-500 h-full" style="width: 50%"></div>
+                                        </div>
+                                        <div class="w-8 text-left text-sm font-bold">50%</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-16 text-sm">61 - 80</div>
+                                        <div class="flex-grow bg-gray-200 rounded-full h-4 overflow-hidden">
+                                            <div class="bg-yellow-400 h-full" style="width: 25%"></div>
+                                        </div>
+                                        <div class="w-8 text-left text-sm font-bold">25%</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-16 text-sm">0 - 60</div>
+                                        <div class="flex-grow bg-gray-200 rounded-full h-4 overflow-hidden">
+                                            <div class="bg-red-500 h-full" style="width: 25%"></div>
+                                        </div>
+                                        <div class="w-8 text-left text-sm font-bold">25%</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-blue-50 p-4 rounded shadow-sm border border-blue-200 text-blue-900">
+                                <h3 class="font-bold border-b border-blue-200 pb-2 mb-4"><i class="fas fa-robot ml-2"></i>סיוע בינה מלאכותית</h3>
+                                <p class="text-sm mb-3">מערכת ה-AI זמינה לבדיקה אוטומטית של שאלות פתוחות ולהצעת ניקוד בהתבסס על מחוון התשובות.</p>
+                                <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm font-bold transition">
+                                    הפעל בדיקה מקדימה AI
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Teacher Review View ---
+        function getTeacherReviewHtml() {
+            const student = state.currentReview;
+            const ans = student.answers || {};
+            
+            return `
+                <div class="max-w-5xl mx-auto w-full mt-4 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg mb-8">
+                    <div class="flex justify-between items-center border-b pb-4 mb-6">
+                        <div>
+                            <h2 class="text-3xl font-bold text-blue-900">בדיקת מבחן: ${student.studentName || 'ללא שם'}</h2>
+                            <p class="text-gray-600 mt-1 text-lg">ת.ז: ${student.studentId || '-'} | כיתה: ${student.classRoom || '-'}</p>
+                        </div>
+                        <button onclick="state.view='teacher_dash'; render();" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg font-bold transition flex items-center shadow-sm">
+                            <i class="fas fa-arrow-right ml-2"></i>חזור ללוח הבקרה
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-8 text-right" dir="rtl">
+                        <!-- Section 1 -->
+                        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                            <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק א' - הבנת הנקרא</h3>
+                            <div class="space-y-4 text-gray-800">
+                                <div class="p-3 bg-gray-50 rounded border"><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <strong>5. פירוש מילים:</strong> 
+                                    <div class="mt-2 text-blue-800 font-medium grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                                            <span class="text-gray-600 text-sm">מילה 1:</span> ${ans['5w1']||'-'}<br>
+                                            <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m1']||'-'}<br>
+                                            <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s1']||'-'}
+                                        </div>
+                                        <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                                            <span class="text-gray-600 text-sm">מילה 2:</span> ${ans['5w2']||'-'}<br>
+                                            <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m2']||'-'}<br>
+                                            <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s2']||'-'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>
+                                <div class="p-3 bg-gray-50 rounded border"><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>
+                            </div>
+                        </div>
+
+                        <!-- Section 2 -->
+                        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                            <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק ב' - חיבור</h3>
+                            <div class="p-3 bg-gray-50 rounded border">
+                                <strong>7. תוכן החיבור:</strong> 
+                                <div class="mt-4 text-blue-900 font-medium text-lg leading-loose whitespace-pre-wrap bg-white p-4 rounded border border-blue-100 min-h-[200px]">${ans['essay'] || 'התלמיד לא כתב חיבור.'}</div>
+                            </div>
+                        </div>
+
+                        <!-- Section 3 -->
+                        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                            <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק ג' - לשון</h3>
+                            <div class="space-y-6 text-gray-800">
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <strong class="text-lg">8. הפועל:</strong>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> שורש: <span class="text-blue-800 font-bold">${ans['8a_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8a_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8a_fill']||'-'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> שורש: <span class="text-blue-800 font-bold">${ans['8b_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8b_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8b_fill']||'-'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> שורש: <span class="text-blue-800 font-bold">${ans['8c_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8c_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8c_fill']||'-'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ד:</span> שורש: <span class="text-blue-800 font-bold">${ans['8d_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8d_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8d_fill']||'-'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ה:</span> שורש: <span class="text-blue-800 font-bold">${ans['8e_root']||'-'}</span> | בניין: <span class="text-blue-800 font-bold">${ans['8e_binyan']||'-'}</span> | פועל: <span class="text-blue-800 font-bold">${ans['8e_fill']||'-'}</span></div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <strong class="text-lg">9. שם העצם (טבלה):</strong>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 1: <span class="text-blue-800 font-bold">${ans['9w1']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t1'])}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 2: <span class="text-blue-800 font-bold">${ans['9w2']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t2'])}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 3: <span class="text-blue-800 font-bold">${ans['9w3']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t3'])}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm">מילה 4: <span class="text-blue-800 font-bold">${ans['9w4']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t4'])}</span></div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-gray-50 rounded border">
+                                    <strong class="text-lg">10. מילות קישור:</strong>
+                                    <div class="mt-3 space-y-2">
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">א:</span> <span class="text-blue-800 font-bold">${ans['10a'] || 'לא נענה'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ב:</span> <span class="text-blue-800 font-bold">${ans['10b'] || 'לא נענה'}</span></div>
+                                        <div class="bg-white p-2 rounded border shadow-sm"><span class="font-bold text-gray-600">ג:</span> <span class="text-blue-800 font-bold">${ans['10c'] || 'לא נענה'}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Interaction & Event Handlers ---
+        // Attached to window to work correctly with dynamic imports
         
-        saveSubmissions();
-        
-        currentGrades = {};
-        currentComments = {};
-        currentPenalty = 0;
-        
-        currentView = 'teacher_dashboard';
+        window.saveAnswer = function(id, val) {
+            if(state.view === 'exam') {
+                state.exam.answers[id] = val;
+                localStorage.setItem('exam_answers', JSON.stringify(state.exam.answers));
+            }
+        };
+
+        window.toggleMark = function(id) {
+            state.exam.marked[id] = !state.exam.marked[id];
+            localStorage.setItem('exam_marked', JSON.stringify(state.exam.marked));
+            render(); 
+        };
+
+        window.handleTopicCheck = function(checkbox) {
+            window.saveAnswer('topic_selected_' + checkbox.id, checkbox.checked);
+        };
+
+        window.navigateSection = function(dir) {
+            let next = state.exam.section + dir;
+            if (next >= 1 && next <= 3) {
+                state.exam.section = next;
+                render();
+            }
+        };
+
+        window.attemptUnlock = function() {
+            const input = document.getElementById('unlock-code').value;
+            if (input === TEACHER_UNLOCK_CODE) {
+                state.exam.isLocked = false;
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                }
+                render();
+            } else {
+                document.getElementById('unlock-error').classList.remove('hidden');
+            }
+        };
+
+        window.submitExam = function() {
+            window.showModal('האם אתה בטוח שברצונך להגיש את הבחינה? לא תוכל לשנות את התשובות לאחר מכן.', true, () => {
+                const btn = document.getElementById('submit-btn');
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i> מגיש, אנא המתן...';
+                    btn.disabled = true;
+                    btn.classList.add('opacity-70', 'cursor-not-allowed');
+                }
+                window.doSubmit();
+            });
+        };
+
+        window.doSubmit = async function() {
+            clearInterval(state.exam.timerInterval);
+            
+            if(document.fullscreenElement) {
+                 document.exitFullscreen().catch(()=>{});
+            }
+            
+            let submissionSuccess = false;
+
+            // FIREBASE DATA SUBMISSION
+            if (window.firebaseLoaded && currentUser) {
+                try {
+                    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'submissions');
+                    await addDoc(colRef, {
+                        studentId: state.user.id,
+                        studentName: state.user.name,
+                        classRoom: state.user.classRoom,
+                        instCode: state.user.instCode,
+                        answers: state.exam.answers,
+                        timestamp: serverTimestamp(),
+                        status: 'submitted',
+                        score: null
+                    });
+                    submissionSuccess = true;
+                } catch(e) {
+                    console.error("שגיאה בשמירה ל-Firestore:", e);
+                }
+            }
+
+            // FALLBACK TO LOCAL STORAGE IF FIREBASE FAILS
+            if (!submissionSuccess) {
+                console.warn("Saving to local storage fallback due to cloud error");
+                const localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+                localSubmissions.push({
+                    studentId: state.user.id,
+                    studentName: state.user.name,
+                    classRoom: state.user.classRoom,
+                    answers: state.exam.answers,
+                    date: new Date().toISOString()
+                });
+                localStorage.setItem('local_submissions', JSON.stringify(localSubmissions));
+                
+                // Show a brief notification that it saved locally, then proceed
+                window.showModal("הייתה בעיה בחיבור לענן, אך המבחן הוגש ונשמר כגיבוי מקומי בהצלחה!");
+            }
+
+            state.view = 'submitted';
+            localStorage.removeItem('exam_answers');
+            localStorage.removeItem('exam_marked');
+            render();
+        };
+
+        window.viewStudentExam = function(docId) {
+            // Find student from Firebase data or Local backup
+            const localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+            const allData = [...studentsData];
+            
+            localSubmissions.forEach(ls => {
+                if(!allData.find(d => d.studentId === ls.studentId)) {
+                    allData.push({ ...ls, id: ls.studentId, status: 'submitted_local' }); 
+                }
+            });
+
+            const studentRecord = allData.find(s => s.id === docId || s.studentId === docId);
+            
+            if (studentRecord) {
+                state.currentReview = studentRecord;
+                state.view = 'teacher_review';
+                render();
+            } else {
+                window.showModal("לא ניתן למצוא את פרטי המבחן במסד הנתונים.");
+            }
+        };
+
+        window.exportToExcel = function() {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
+            csvContent += "ת.ז,שם,כיתה,סטטוס,ציון\r\n";
+            
+            const localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+            const allData = [...studentsData];
+            localSubmissions.forEach(ls => {
+                if(!allData.find(d => d.studentId === ls.studentId)) {
+                    allData.push({ ...ls, status: 'submitted_local' });
+                }
+            });
+
+            allData.forEach(row => {
+                let statusText = row.status === 'submitted' ? 'הוגש בענן' : (row.status === 'submitted_local' ? 'גיבוי מקומי' : 'נבחן כעת');
+                csvContent += `${row.studentId || ''},${row.studentName || ''},${row.classRoom || ''},${statusText},${row.score||''}\r\n`;
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "ציונים_שאלון_371.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        function startTimer() {
+            if(state.exam.timerInterval) clearInterval(state.exam.timerInterval);
+            state.exam.timerInterval = setInterval(() => {
+                if (state.exam.timeRemaining > 0 && !state.exam.isLocked) {
+                    state.exam.timeRemaining--;
+                    updateHeader();
+                } else if (state.exam.timeRemaining <= 0) {
+                    clearInterval(state.exam.timerInterval);
+                    window.showModal('הזמן נגמר! הבחינה מוגשת אוטומטית.', false, () => {
+                        window.doSubmit();
+                    });
+                }
+            }, 1000);
+        }
+
+        function lockExam() {
+            if(state.view === 'exam' && !state.exam.isLocked) {
+                state.exam.isLocked = true;
+                render();
+            }
+        }
+
+        function attachEventListeners() {
+            const stuForm = document.getElementById('student-login-form');
+            if (stuForm) {
+                stuForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    state.user = {
+                        role: 'student',
+                        name: document.getElementById('stu-name').value,
+                        id: document.getElementById('stu-id').value,
+                        classRoom: document.getElementById('stu-class').value,
+                        instCode: document.getElementById('stu-inst').value,
+                        extraTime: document.getElementById('stu-extra').checked
+                    };
+                    state.view = 'instructions';
+                    render();
+                };
+            }
+
+            const teaForm = document.getElementById('teacher-login-form');
+            if (teaForm) {
+                teaForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    const code = document.getElementById('tea-code').value;
+                    if (code === TEACHER_LOGIN_CODE) {
+                        state.user.role = 'teacher';
+                        state.view = 'teacher_dash';
+                        loadSubmissions(); // Load actual real-time data from Firestore
+                        render();
+                    } else {
+                        window.showModal('קוד בחינה שגוי!');
+                    }
+                };
+            }
+
+            const startBtn = document.getElementById('btn-start-exam');
+            if (startBtn) {
+                startBtn.onclick = () => {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen().catch(err => console.log(err));
+                    }
+                    
+                    state.view = 'exam';
+                    state.exam.section = 1;
+                    
+                    const baseSeconds = EXAM_DURATION;
+                    state.exam.timeRemaining = state.user.extraTime ? Math.floor(baseSeconds * EXTRA_TIME_MULTIPLIER) : baseSeconds;
+                    
+                    startTimer();
+                    render();
+                };
+            }
+
+            const logoutBtn = document.getElementById('btn-logout');
+            if(logoutBtn) {
+                logoutBtn.onclick = () => {
+                    state.view = 'login';
+                    state.user.role = null;
+                    render();
+                }
+            }
+        }
+
+        // --- Security / Anti-Cheat ---
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && state.view === 'exam' && !state.exam.isLocked) {
+                lockExam();
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && state.view === 'exam' && !state.exam.isLocked) {
+                lockExam();
+            }
+        });
+
+        document.addEventListener('copy', () => {
+            state.internalCopy = true;
+            setTimeout(() => { state.internalCopy = false; }, 3000);
+        });
+
+        document.addEventListener('paste', (e) => {
+            if (state.view === 'exam') {
+                if (!state.internalCopy) {
+                    e.preventDefault();
+                    window.showModal('שים לב: ההדבקה ממקורות חיצוניים חסומה!');
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'PrintScreen' && state.view === 'exam') {
+                navigator.clipboard.writeText('צילום מסך נחסם ע"י המערכת.');
+                window.showModal('צילום מסך חסום בבחינה.');
+            }
+        });
+
+        // Initialize App
         render();
-    }
-}
-
-// ==========================================
-// הפעלה ראשונית
-// ==========================================
-window.onload = render;
-
-</script>
+    </script>
 </body>
 </html>
