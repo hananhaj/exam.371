@@ -88,7 +88,7 @@
 
     <script>
         // --- Firebase Integration ---
-        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, docRef, updateDoc, getDocs;
+        let db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, docRef, updateDoc, getDocs, deleteDoc;
         let currentUser = null;
         window.firebaseLoaded = false;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'hebrew-exam-371';
@@ -127,6 +127,7 @@
                 docRef = firestore.doc; // Needed for updating specific documents
                 updateDoc = firestore.updateDoc; // Needed for saving scores
                 getDocs = firestore.getDocs; // Needed to check student existing submission
+                deleteDoc = firestore.deleteDoc; // Needed for deleting submissions
                 signInAnonymously = authModule.signInAnonymously;
                 signInWithCustomToken = authModule.signInWithCustomToken;
                 onAuthStateChanged = authModule.onAuthStateChanged;
@@ -220,6 +221,8 @@
             return 'לא סומן';
         }
 
+        const q9WordsList = ['אזהרה', 'רשמית', 'הסלמה', 'התעלמות', 'מנגנון', 'פלטפורמות'];
+
         // --- State Management ---
         const EXAM_DURATION = 112.5 * 60; // 112.5 minutes in seconds
         const EXTRA_TIME_MULTIPLIER = 1.15;
@@ -229,6 +232,7 @@
         let state = {
             view: 'login', // login, instructions, exam, summary, submitted, teacher_dash, teacher_review, student_results
             user: { role: null, name: '', id: '', classRoom: '', instCode: '', extraTime: false },
+            filterClass: '', // Add filter for teacher dashboard
             exam: {
                 section: 1, // 1, 2, 3
                 timeRemaining: 0,
@@ -392,22 +396,35 @@
             
             if (state.exam.section === 1) {
                 sectionContent = `
-                    <div class="flex flex-col md:flex-row h-full gap-6">
-                        <!-- Left: Questions -->
-                        <div class="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[70vh]">
+                    <div class="flex flex-col lg:flex-row h-full gap-6">
+                        
+                        <!-- Top on Mobile, Right on Desktop: Sticky Text -->
+                        <div class="order-1 lg:order-2 w-full lg:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[40vh] lg:h-[70vh] border-r-4 border-blue-500">
+                            ${readingText}
+                        </div>
+
+                        <!-- Bottom on Mobile, Left on Desktop: Questions -->
+                        <div class="order-2 lg:order-1 w-full lg:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[60vh] lg:h-[70vh]">
                             <div class="flex justify-between items-center mb-6">
                                 <h2 class="text-2xl font-bold text-blue-900">פרק ראשון – הבנת הנקרא (50 נק')</h2>
                             </div>
-                            <p class="text-sm text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">ניתן להקליד תשובות או לגרור טקסט מסומן מהקטע שמשמאל לתוך תיבות הטקסט.</p>
+                            
+                            <div class="bg-red-100 border-2 border-red-500 text-red-700 font-bold p-4 rounded-lg mb-6 text-lg shadow-sm text-center">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>
+                                הנחיה חשובה: עליכם לבחור ולפתור <span class="text-2xl underline">6 סעיפים בלבד</span> מתוך כל השאלות בפרק זה! (כל סעיף 8.33 נק').<br>
+                                <span class="text-sm font-normal">אסור לפתור את הכול! במקרה של מענה על יותר מ-6 סעיפים, המורה יבדוק אך ורק את ה-6 הראשונים.</span>
+                            </div>
+
+                            <p class="text-sm text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">ניתן להקליד תשובות או לגרור טקסט מסומן מהקטע שלצד/מעל השאלות לתוך תיבות הטקסט.</p>
                             
                             <div class="space-y-8">
-                                ${generateMCQ('1a', '1. א. על פי פסקה א, מהי אחת הטענות המרכזיות של המחבר לגבי האופן שבו מתוכננות ערים מודרניות? (10 נק\')', [
+                                ${generateMCQ('1a', '1. א. על פי פסקה א, מהי אחת הטענות המרכזיות של המחבר לגבי האופן שבו מתוכננות ערים מודרניות? (8.33 נק\')', [
                                     'הערים המודרניות מצליחות ליצור מגוון רחב של סגנונות חיים שונים.',
                                     'הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.',
                                     'הרשויות המקומיות אינן אחראיות כלל על תכנון הרחובות והשכונות.',
                                     'תושבי הערים מעדיפים לחיות במקומות שקטים ומנותקים מתעשייה.'
                                 ])}
-                                ${generateMCQ('1b', 'ב. על פי פסקה ב, מה עלול להוביל לירידה בחוסן הנפשי של התושבים? (10 נק\')', [
+                                ${generateMCQ('1b', 'ב. על פי פסקה ב, מה עלול להוביל לירידה בחוסן הנפשי של התושבים? (8.33 נק\')', [
                                     'מגורים בשכונות שקטות מדי, ללא אירועי תרבות.',
                                     'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.',
                                     'שימוש מוגבר ברשתות החברתיות בזמן שעות המנוחה.',
@@ -415,34 +432,36 @@
                                 ])}
                                 
                                 <div class="bg-gray-50 p-4 rounded border">
-                                    <h3 class="font-bold mb-3">2. א. על פי פסקה ג, ציינו: (10 נק')</h3>
-                                    ${generateTextarea('2a1', 'שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר איכות חיים:')}
-                                    ${generateTextarea('2a2', 'טענה אחת של חלק מן התושבים לגבי יישום התקנות בפועל:')}
+                                    <h3 class="font-bold mb-3">2. א. על פי פסקה ג, ציינו:</h3>
+                                    ${generateTextarea('2a1', 'שתי תקנות שהרשות המקומית יכולה לקבוע כדי לשפר איכות חיים (8.33 נק\'):')}
+                                    ${generateTextarea('2a2', 'טענה אחת של חלק מן התושבים לגבי יישום התקנות בפועל (8.33 נק\'):')}
                                 </div>
 
-                                ${generateTextarea('2b', 'ב. על פי פסקה ד, תארו בקצרה את מדיניות האכיפה ההדרגתית המתוארת במאמר. (10 נק\')')}
-                                ${generateTextarea('3a', '3. א. על פי פסקה ה, מה יכולה להיות גם תועלת חיובית בפרסום סרטונים ברשתות החברתיות? (10 נק\')')}
-                                ${generateTextarea('3b', 'ב. על פי המאמר כולו, מהי עמדת הכותב כלפי שימוש בשפה חריפה בדיון הציבורי? נמקו. (10 נק\')')}
+                                ${generateTextarea('2b', 'ב. על פי פסקה ד, תארו בקצרה את מדיניות האכיפה ההדרגתית המתוארת במאמר. (8.33 נק\')')}
+                                ${generateTextarea('3a', '3. א. על פי פסקה ה, מה יכולה להיות גם תועלת חיובית בפרסום סרטונים ברשתות החברתיות? (8.33 נק\')')}
+                                ${generateTextarea('3b', 'ב. על פי המאמר כולו, מהי עמדת הכותב כלפי שימוש בשפה חריפה בדיון הציבורי? נמקו. (8.33 נק\')')}
 
-                                ${generateMCQ('4a', '4. א. על פי המאמר כולו, מהי המטרה העיקרית של המאמר? (10 נק\')', [
+                                ${generateMCQ('4a', '4. א. על פי המאמר כולו, מהי המטרה העיקרית של המאמר? (8.33 נק\')', [
                                     'לשכנע את הקוראים לעבור לגור בכפר במקום בעיר.',
                                     'לתאר את מנגנוני האכיפה המשפטית במדינה.',
                                     'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.',
                                     'להציג נתונים סטטיסטיים על מצב הדיכאון בקרב צעירים.'
                                 ])}
                                 
-                                ${generateInput('4b', 'ב. מהי הכוונה במילה "משלה" במשפט מפסקה א ("...יכולת אכיפה משלה...")?')}
+                                ${generateInput('4b', 'ב. מהי הכוונה במילה "משלה" במשפט מפסקה א ("...יכולת אכיפה משלה...")? (8.33 נק\')')}
                                 
                                 <div class="bg-gray-50 p-4 rounded border">
-                                    <h3 class="font-bold mb-3">5. בחרו שתי מילים מן הרשימה, כתבו פירוש ומשפט חדש (10 נק'):</h3>
+                                    <h3 class="font-bold mb-3">5. בחרו שתי מילים מן הרשימה, כתבו פירוש ומשפט חדש:</h3>
                                     <p class="text-sm text-gray-600 mb-2">המילים לבחירה: מיפגע, הסלמה, חוסן נפשי, דעה קדומה, תקנות, מודעות</p>
                                     <div class="space-y-4">
                                         <div class="border-b pb-2">
+                                            <p class="font-bold text-sm text-blue-800 mb-2">(סעיף 1 - 8.33 נק'):</p>
                                             ${generateInput('5w1', 'מילה 1:')}
                                             ${generateInput('5m1', 'פירוש:')}
                                             ${generateInput('5s1', 'משפט חדש:')}
                                         </div>
                                         <div>
+                                            <p class="font-bold text-sm text-blue-800 mb-2">(סעיף 2 - 8.33 נק'):</p>
                                             ${generateInput('5w2', 'מילה 2:')}
                                             ${generateInput('5m2', 'פירוש:')}
                                             ${generateInput('5s2', 'משפט חדש:')}
@@ -455,15 +474,11 @@
                                     <p class="text-sm leading-relaxed">בעיר מסוימת הותקן בשנים האחרונות מנגנון מדידה חדש, הבוחן את רמת הרעש ברחובות מרכזיים במשך כל שעות היממה. הנתונים הראו כי בשל עבודות תעשייה ליליות, תחבורה כבדה ומקומות בילוי, רמת הרעש בשכונות סמוכות עלתה בהרבה מעל הסף שנקבע בתקנות. בעקבות זאת הכריזה הרשות המקומית על מצב חירום זמני בשתי שכונות, הגבילה את פעילות העסקים בשעות מאוחרות והטילה קנסות על מי שהמשיך להפעיל ציוד רועש. חלק מן התושבים טענו שהצעדים הללו פוגעים בחופש העיסוק, ואחרים טענו שהרשות נמנעה במשך שנים מלטפל בבעיה, ולכן הצעדים כעת הם רק מינימום נדרש לשיפור המצב.</p>
                                 </div>
 
-                                ${generateTextarea('6a', '6. א. (על פי הקטע הנוסף ופסקה ג) הסבירו כיצד מסייעות התקנות והקנסות להתמודד עם בעיית הרעש? (10 נק\')')}
-                                ${generateTextarea('6b', '6. ב. (על פי הקטע הנוסף ופסקה ב) הסבירו מדוע יכולים חלק מן התושבים לראות ברעש מתמשך גורם המסכן את החוסן הנפשי שלהם? (10 נק\')')}
+                                ${generateTextarea('6a', '6. א. (על פי הקטע הנוסף ופסקה ג) הסבירו כיצד מסייעות התקנות והקנסות להתמודד עם בעיית הרעש? (8.33 נק\')')}
+                                ${generateTextarea('6b', '6. ב. (על פי הקטע הנוסף ופסקה ב) הסבירו מדוע יכולים חלק מן התושבים לראות ברעש מתמשך גורם המסכן את החוסן הנפשי שלהם? (8.33 נק\')')}
                             </div>
                         </div>
 
-                        <!-- Right: Sticky Text -->
-                        <div class="w-full md:w-1/2 bg-white p-6 rounded-lg shadow-sm overflow-y-auto h-[70vh] border-r-4 border-blue-500">
-                            ${readingText}
-                        </div>
                     </div>
                 `;
             } else if (state.exam.section === 2) {
@@ -524,38 +539,42 @@
                         <!-- Part B -->
                         <div class="mb-10">
                             <h3 class="text-xl font-bold mb-4 bg-gray-100 p-2 rounded">חלק ב – שם העצם ומבנה המילה (4 נק')</h3>
-                            <p class="text-sm mb-4">קראו את הקטע וענו: בחרו 4 מילים בלבד ומיינו אותן בטבלה.</p>
+                            <p class="text-sm mb-4">קראו את הקטע וענו: בחרו וסמנו את הסיווג הנכון לכל 6 המילים בטבלה. המערכת תבדוק ותעניק ציון על סמך 4 התשובות הנכונות.</p>
                             <p class="bg-blue-50 p-3 rounded mb-4 text-sm">"הרשות פרסמה <strong>אזהרה</strong> <strong>רשמית</strong> בעקבות <strong>הסלמה</strong>... כי <strong>התעלמות</strong> תיחשב הפרה... כי יופעל <strong>מנגנון</strong> פיקוח... <strong>פלטפורמות</strong> מקוונות..."</p>
                             
-                            <table class="w-full text-center border-collapse border border-gray-300">
-                                <thead>
-                                    <tr class="bg-gray-200">
-                                        <th class="border p-2 w-1/4">מילה</th>
-                                        <th class="border p-2">שורש ומשקל</th>
-                                        <th class="border p-2">בסיס וצורן</th>
-                                        <th class="border p-2">שאילה מלעז</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${[1,2,3,4].map(i => `
-                                        <tr>
-                                            <td class="border p-2"><input type="text" id="ans_9w${i}" class="w-full text-center border-b outline-none" oninput="saveAnswer('9w${i}', this.value)" value="${state.exam.answers['9w'+i] || ''}"></td>
-                                            <td class="border p-2"><input type="radio" name="9t${i}" value="root" onchange="saveAnswer('9t${i}', 'root')" ${state.exam.answers['9t'+i] === 'root' ? 'checked' : ''} class="w-4 h-4"></td>
-                                            <td class="border p-2"><input type="radio" name="9t${i}" value="base" onchange="saveAnswer('9t${i}', 'base')" ${state.exam.answers['9t'+i] === 'base' ? 'checked' : ''} class="w-4 h-4"></td>
-                                            <td class="border p-2"><input type="radio" name="9t${i}" value="loan" onchange="saveAnswer('9t${i}', 'loan')" ${state.exam.answers['9t'+i] === 'loan' ? 'checked' : ''} class="w-4 h-4"></td>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-center border-collapse border border-gray-300 min-w-[600px]">
+                                    <thead>
+                                        <tr class="bg-gray-200">
+                                            <th class="border p-2 w-1/4">מילה</th>
+                                            <th class="border p-2">שורש ומשקל</th>
+                                            <th class="border p-2">בסיס וצורן</th>
+                                            <th class="border p-2">שאילה מלעז</th>
                                         </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        ${q9WordsList.map((word, i) => {
+                                            let idx = i + 1;
+                                            return `
+                                            <tr class="hover:bg-gray-50 transition">
+                                                <td class="border p-2 font-bold text-blue-900 bg-gray-50">${word}</td>
+                                                <td class="border p-2"><input type="radio" name="9t${idx}" value="root" onchange="saveAnswer('9t${idx}', 'root')" ${state.exam.answers['9t'+idx] === 'root' ? 'checked' : ''} class="w-5 h-5 cursor-pointer"></td>
+                                                <td class="border p-2"><input type="radio" name="9t${idx}" value="base" onchange="saveAnswer('9t${idx}', 'base')" ${state.exam.answers['9t'+idx] === 'base' ? 'checked' : ''} class="w-5 h-5 cursor-pointer"></td>
+                                                <td class="border p-2"><input type="radio" name="9t${idx}" value="loan" onchange="saveAnswer('9t${idx}', 'loan')" ${state.exam.answers['9t'+idx] === 'loan' ? 'checked' : ''} class="w-5 h-5 cursor-pointer"></td>
+                                            </tr>
+                                        `}).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <!-- Part C -->
                         <div>
                             <h3 class="text-xl font-bold mb-4 bg-gray-100 p-2 rounded">חלק ג – מילות קישור (6 נק')</h3>
                             <div class="space-y-6">
-                                ${generateMCQ('10a', 'א. הקיפו מילת קישור מתאימה: התושבים מרגישים תנאים טובים, _______ אחרים טוענים שבלתי נסבל.', ['אבל', 'מכיוון ש', 'לכן', 'כדי ש'])}
-                                ${generateMCQ('10b', 'ב. הקיפו מילת קישור מתאימה: הרשות הגבילה שעות, _______ להפחית רעש.', ['אף על פי ש', 'כדי', 'למרות', 'או'])}
-                                ${generateMCQ('10c', 'ג. החליפו מילת קישור (אבל) במילה נרדפת: התושבים ביקשו פעולה, אבל המשיכו לסבול.', ['למרות זאת', 'משום כך', 'כדי ש', 'או'])}
+                                ${generateMCQ('10a', 'א. הקיפו מילת קישור מתאימה: התושבים מרגישים תנאים טובים, _______ אחרים טוענים שבלתי נסבל.', ['אבל', 'מכיוון ש', 'לכן', 'כדי ש'], true)}
+                                ${generateMCQ('10b', 'ב. הקיפו מילת קישור מתאימה: הרשות הגבילה שעות, _______ להפחית רעש.', ['אף על פי ש', 'כדי', 'למרות', 'או'], true)}
+                                ${generateMCQ('10c', 'ג. החליפו מילת קישור (אבל) במילה נרדפת: התושבים ביקשו פעולה, אבל המשיכו לסבול.', ['למרות זאת', 'משום כך', 'כדי ש', 'או'], true)}
                             </div>
                         </div>
                     </div>
@@ -596,19 +615,20 @@
         }
 
         // Exam Question Helpers
-        function generateMCQ(id, text, options) {
+        function generateMCQ(id, text, options, horizontal = false) {
             let optsHtml = options.map((opt, i) => `
-                <label class="flex items-center gap-2 p-2 hover:bg-blue-50 rounded cursor-pointer border border-transparent hover:border-blue-200 transition">
+                <label class="flex items-center gap-2 p-2 hover:bg-blue-50 rounded cursor-pointer border border-transparent hover:border-blue-200 transition ${horizontal ? 'bg-gray-50 border-gray-200 flex-1 justify-center' : ''}">
                     <input type="radio" name="${id}" value="${i}" onchange="saveAnswer('${id}', '${opt}')" ${state.exam.answers[id] === opt ? 'checked' : ''} class="w-4 h-4 text-blue-600">
-                    <span>${opt}</span>
+                    <span class="${horizontal ? 'whitespace-nowrap' : ''}">${opt}</span>
                 </label>
             `).join('');
             
+            const layoutClass = horizontal ? 'flex flex-col sm:flex-row gap-3 mt-3' : 'space-y-1';
             return `
                 <div class="mb-6 relative">
                     <button onclick="toggleMark('${id}')" class="absolute left-0 top-0 text-gray-400 hover:text-yellow-500 ${state.exam.marked[id] ? 'text-yellow-500' : ''}" title="סמן לבדיקה חוזרת"><i class="fas fa-star"></i></button>
                     <p class="font-bold mb-3 pr-6">${text}</p>
-                    <div class="space-y-1 pr-6">${optsHtml}</div>
+                    <div class="${layoutClass} pr-6">${optsHtml}</div>
                 </div>
             `;
         }
@@ -687,7 +707,7 @@
                     chapter: "פרק ג' - לשון",
                     questions: [
                         { id: '8', title: 'שאלה 8 (הפועל)', keys: ['8a_root', '8b_root', '8c_root', '8d_root', '8e_root'] },
-                        { id: '9', title: 'שאלה 9 (שם העצם)', keys: ['9w1', '9w2', '9w3', '9w4'] },
+                        { id: '9', title: 'שאלה 9 (שם העצם)', keys: ['9t1', '9t2', '9t3', '9t4', '9t5', '9t6'] },
                         { id: '10', title: 'שאלה 10 (מילות קישור)', keys: ['10a', '10b', '10c'] }
                     ]
                 }
@@ -768,10 +788,14 @@
             `;
         }
 
+        // --- Student Detailed Results View ---
         function getStudentResultsHtml() {
             const student = state.currentReview;
+            const ans = student.answers || {};
             const comments = student.teacherComments || {};
             const score = student.score || 0;
+
+            const expectedHtml = (expectedText) => `<div class="text-sm text-green-800 bg-green-50 px-3 py-2 rounded-lg w-full mt-3 border border-green-200"><strong>תשובה מצופה:</strong> ${expectedText}</div>`;
 
             return `
                 <div class="max-w-4xl mx-auto w-full mt-10 glass-panel rounded-xl p-8 border border-gray-200 shadow-lg">
@@ -789,23 +813,84 @@
                         <div class="text-5xl font-black text-green-600">${score}</div>
                     </div>
 
-                    <div class="space-y-6 text-right" dir="rtl">
-                        <h3 class="text-2xl font-bold text-blue-900 border-b border-blue-200 pb-2">הערות המורה:</h3>
+                    <div class="space-y-8 text-right" dir="rtl">
+                        <h3 class="text-2xl font-bold text-blue-900 border-b border-blue-200 pb-2">פירוט התשובות והערות המורה:</h3>
                         
+                        <!-- פרק א -->
                         <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-book-open text-blue-500 ml-2"></i>פרק א' - הבנת הנקרא:</h4>
-                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec1 || 'אין הערות לפרק זה.'}</p>
+                            <h4 class="font-bold text-xl text-blue-800 mb-4 bg-blue-50 p-2 rounded"><i class="fas fa-book-open text-blue-500 ml-2"></i>פרק א' - הבנת הנקרא</h4>
+                            <div class="space-y-4">
+                                <div class="bg-gray-50 p-3 rounded border"><strong>1. א:</strong> <div class="mt-2 text-gray-800">${ans['1a'] || 'לא נענה'}</div>${expectedHtml('הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>1. ב:</strong> <div class="mt-2 text-gray-800">${ans['1b'] || 'לא נענה'}</div>${expectedHtml('חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-gray-800">${ans['2a1'] || 'לא נענה'}</div>${expectedHtml('הגבלת שעות הפעלת מכשירים רועשים או קביעת קנסות כבדים.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-gray-800">${ans['2a2'] || 'לא נענה'}</div>${expectedHtml('מנגנון הפיקוח מסורבל והעונשים לא משמעותיים מספיק.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>2. ב:</strong> <div class="mt-2 text-gray-800 whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div>${expectedHtml('תחילה נשלחת אזהרה, לאחר מכן מוטל קנס, ורק בהפרה חוזרת ננקטים צעדים חמורים יותר.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>3. א:</strong> <div class="mt-2 text-gray-800 whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div>${expectedHtml('פרסום סרטונים יכול להוביל ללחץ ציבורי, שגורם לרשויות לפעול בשקיפות גבוהה יותר.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>3. ב:</strong> <div class="mt-2 text-gray-800 whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div>${expectedHtml('הכותב מציג עמדה מורכבת: מצד אחד, השפה החריפה עשויה להיתפס כהגזמה, ומצד שני היא עשויה לעורר את הציבור לפעולה כשאחרת לא מקשיבים לו.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>4. א:</strong> <div class="mt-2 text-gray-800">${ans['4a'] || 'לא נענה'}</div>${expectedHtml('לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>4. ב:</strong> <div class="mt-2 text-gray-800">${ans['4b'] || 'לא נענה'}</div>${expectedHtml('הכוונה שייכת לה / שלה (של הרשות המקומית).')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>5. מילה 1:</strong> <span class="text-blue-800">${ans['5w1']||'-'}</span> (פירוש: ${ans['5m1']||'-'} | משפט: ${ans['5s1']||'-'})</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>5. מילה 2:</strong> <span class="text-blue-800">${ans['5w2']||'-'}</span> (פירוש: ${ans['5m2']||'-'} | משפט: ${ans['5s2']||'-'})</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>6. א:</strong> <div class="mt-2 text-gray-800 whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div>${expectedHtml('התקנות מצמצמות פעילות רועשת והקנסות מרתיעים את המפירים מלחזור על כך.')}</div>
+                                <div class="bg-gray-50 p-3 rounded border"><strong>6. ב:</strong> <div class="mt-2 text-gray-800 whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div>${expectedHtml('רעש מתמשך יכול להוביל ללחץ, חוסר אונים, עייפות וייאוש שפוגעים בבריאות הנפשית.')}</div>
+                            </div>
+                            <div class="mt-4 p-4 bg-yellow-50 border-r-4 border-yellow-400 rounded">
+                                <h5 class="font-bold text-yellow-800 mb-1">הערות המורה לפרק א':</h5>
+                                <p class="text-yellow-900 whitespace-pre-wrap">${comments.sec1 || 'אין הערות.'}</p>
+                            </div>
                         </div>
 
+                        <!-- פרק ב -->
                         <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-pen-nib text-blue-500 ml-2"></i>פרק ב' - חיבור:</h4>
-                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec2 || 'אין הערות לפרק זה.'}</p>
+                            <h4 class="font-bold text-xl text-blue-800 mb-4 bg-blue-50 p-2 rounded"><i class="fas fa-pen-nib text-blue-500 ml-2"></i>פרק ב' - חיבור</h4>
+                            <div class="bg-gray-50 p-4 rounded border">
+                                <strong>החיבור שלך:</strong>
+                                <div class="mt-3 text-gray-800 leading-loose whitespace-pre-wrap">${ans['essay'] || 'לא נכתב חיבור.'}</div>
+                            </div>
+                            <div class="mt-4 p-4 bg-yellow-50 border-r-4 border-yellow-400 rounded">
+                                <h5 class="font-bold text-yellow-800 mb-1">הערות המורה לפרק ב':</h5>
+                                <p class="text-yellow-900 whitespace-pre-wrap">${comments.sec2 || 'אין הערות.'}</p>
+                            </div>
                         </div>
 
+                        <!-- פרק ג -->
                         <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-                            <h4 class="font-bold text-lg text-gray-800 mb-2"><i class="fas fa-language text-blue-500 ml-2"></i>פרק ג' - לשון:</h4>
-                            <p class="text-gray-700 whitespace-pre-wrap">${comments.sec3 || 'אין הערות לפרק זה.'}</p>
+                            <h4 class="font-bold text-xl text-blue-800 mb-4 bg-blue-50 p-2 rounded"><i class="fas fa-language text-blue-500 ml-2"></i>פרק ג' - לשון</h4>
+                            <div class="space-y-4">
+                                <div class="bg-gray-50 p-3 rounded border">
+                                    <strong>8. הפועל:</strong>
+                                    <div class="mt-2 text-gray-800">
+                                        א: ${ans['8a_root']||'-'}, ${ans['8a_binyan']||'-'}, ${ans['8a_fill']||'-'}<br>
+                                        ב: ${ans['8b_root']||'-'}, ${ans['8b_binyan']||'-'}, ${ans['8b_fill']||'-'}<br>
+                                        ג: ${ans['8c_root']||'-'}, ${ans['8c_binyan']||'-'}, ${ans['8c_fill']||'-'}<br>
+                                        ד: ${ans['8d_root']||'-'}, ${ans['8d_binyan']||'-'}, ${ans['8d_fill']||'-'}<br>
+                                        ה: ${ans['8e_root']||'-'}, ${ans['8e_binyan']||'-'}, ${ans['8e_fill']||'-'}
+                                    </div>
+                                    ${expectedHtml('א: דג"ש, הפעיל / ב: עו"ר, התפעל / ג: צב"ע, הופעל / ד: קב"ע, נפעל / ה: שמ"ש, פיעל')}
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded border">
+                                    <strong>9. שם העצם:</strong>
+                                    <div class="mt-2 text-gray-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        ${q9WordsList.map((word, i) => `
+                                            <div>מילה ${i+1} (${word}): <span class="font-bold">${translateType(ans['9t'+(i+1)])}</span></div>
+                                        `).join('')}
+                                    </div>
+                                    ${expectedHtml('אזהרה/הסלמה/התעלמות: שורש ומשקל | רשמית/מנגנון: בסיס וצורן | פלטפורמות: שאילה מלעז')}
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded border">
+                                    <strong>10. מילות קישור:</strong>
+                                    <div class="mt-2 text-gray-800">
+                                        א: ${ans['10a']||'-'} | ב: ${ans['10b']||'-'} | ג: ${ans['10c']||'-'}
+                                    </div>
+                                    ${expectedHtml('א: אבל | ב: כדי | ג: למרות זאת')}
+                                </div>
+                            </div>
+                            <div class="mt-4 p-4 bg-yellow-50 border-r-4 border-yellow-400 rounded">
+                                <h5 class="font-bold text-yellow-800 mb-1">הערות המורה לפרק ג':</h5>
+                                <p class="text-yellow-900 whitespace-pre-wrap">${comments.sec3 || 'אין הערות.'}</p>
+                            </div>
                         </div>
+                        
                     </div>
                 </div>
             `;
@@ -822,9 +907,15 @@
                 }
             });
 
-            const tableRows = allData.length === 0 
-                ? '<tr><td colspan="6" class="p-6 text-center text-gray-500">עדיין אין מבחנים מוגשים במערכת...</td></tr>'
-                : allData.map(s => {
+            // פילטור לפי כיתה
+            const classes = [...new Set(allData.map(s => s.classRoom || 'ללא כיתה'))].sort();
+            const classOptions = `<option value="">כל הכיתות</option>` + classes.map(c => `<option value="${c}" ${state.filterClass === c ? 'selected' : ''}>${c}</option>`).join('');
+            
+            const filteredData = state.filterClass ? allData.filter(s => (s.classRoom || 'ללא כיתה') === state.filterClass) : allData;
+
+            const tableRows = filteredData.length === 0 
+                ? '<tr><td colspan="6" class="p-6 text-center text-gray-500">עדיין אין מבחנים מוגשים התואמים לחיפוש...</td></tr>'
+                : filteredData.map(s => {
                 let statusBadge = '';
                 if (s.status === 'submitted') {
                     statusBadge = '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">הוגש בענן</span>';
@@ -847,7 +938,8 @@
                         <td class="p-3 text-center">${statusBadge}</td>
                         <td class="p-3 text-center">${scoreDisplay}</td>
                         <td class="p-3 text-center">
-                            <button onclick="viewStudentExam('${s.id || s.studentId}')" class="text-blue-600 hover:text-blue-800" title="בדוק בחינה"><i class="fas fa-search text-lg"></i></button>
+                            <button onclick="viewStudentExam('${s.id || s.studentId}')" class="text-blue-600 hover:text-blue-800 ml-3" title="בדוק בחינה"><i class="fas fa-search text-lg"></i></button>
+                            <button onclick="window.deleteStudentExam('${s.id || s.studentId}')" class="text-red-600 hover:text-red-800" title="מחק מבחן"><i class="fas fa-trash text-lg"></i></button>
                         </td>
                     </tr>
                 `;
@@ -855,17 +947,26 @@
 
             return `
                 <div class="w-full flex-grow flex flex-col mt-4 gap-6">
-                    <div class="flex justify-between items-center bg-white p-4 rounded shadow-sm border border-gray-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded shadow-sm border border-gray-200 gap-4">
                         <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-chart-line ml-2"></i>לוח בקרת מורה - 371</h2>
-                        <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex items-center gap-2">
-                            <i class="fas fa-file-excel"></i>ייצוא נתונים
-                        </button>
+                        
+                        <div class="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                            <div class="flex items-center gap-2 w-full md:w-auto">
+                                <label class="font-bold text-gray-700">סנן כיתה:</label>
+                                <select class="border p-2 rounded focus:ring focus:ring-blue-200 outline-none w-full md:w-auto" onchange="window.filterByClass(this.value)">
+                                    ${classOptions}
+                                </select>
+                            </div>
+                            <button onclick="exportToExcel()" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow flex justify-center items-center gap-2">
+                                <i class="fas fa-file-excel"></i>ייצוא נתונים
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="flex gap-6">
+                    <div class="flex flex-col lg:flex-row gap-6">
                         <!-- Left: Student List -->
-                        <div class="w-2/3 bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
-                            <table class="w-full text-right">
+                        <div class="w-full lg:w-2/3 bg-white rounded shadow-sm border border-gray-200 overflow-x-auto">
+                            <table class="w-full text-right min-w-[600px]">
                                 <thead class="bg-gray-100 border-b">
                                     <tr>
                                         <th class="p-3 font-semibold">ת.ז</th>
@@ -883,9 +984,9 @@
                         </div>
 
                         <!-- Right: Analytics Panel -->
-                        <div class="w-1/3 space-y-6">
+                        <div class="w-full lg:w-1/3 space-y-6">
                             <div class="bg-white p-4 rounded shadow-sm border border-gray-200">
-                                <h3 class="font-bold border-b pb-2 mb-4">התפלגות ציונים</h3>
+                                <h3 class="font-bold border-b pb-2 mb-4">התפלגות ציונים (ללא סינון)</h3>
                                 <div class="space-y-3">
                                     <div class="flex items-center gap-2">
                                         <div class="w-16 text-sm">81 - 100</div>
@@ -950,11 +1051,11 @@
                 essaySysScore = 20;
             }
 
-            // 2. MCQ Check logic
-            const checkMCQ = (ansKey, correctStr) => (ans[ansKey] === correctStr ? 10 : 0);
-            const c1a = checkMCQ('1a', 'הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.');
-            const c1b = checkMCQ('1b', 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.');
-            const c4a = checkMCQ('4a', 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.');
+            // 2. MCQ Check logic (Adjusted to new points total of 50 -> 8.33 per sub-question)
+            const checkMCQ = (ansKey, correctStr) => (ans[ansKey] === correctStr);
+            const c1a = checkMCQ('1a', 'הערים המודרניות יוצרות לעיתים אחידות חיצונית, בלי התאמה מספקת לצרכים המקומיים.') ? 8.33 : 0;
+            const c1b = checkMCQ('1b', 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות שלא מקבלות פתרון.') ? 8.33 : 0;
+            const c4a = checkMCQ('4a', 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה והקצנה בשיח ובאכיפה בעיר.') ? 8.33 : 0;
             const c10a = checkMCQ('10a', 'אבל') ? 2 : 0;
             const c10b = checkMCQ('10b', 'כדי') ? 2 : 0;
             const c10c = checkMCQ('10c', 'למרות זאת') ? 2 : 0;
@@ -965,8 +1066,8 @@
                     ${expectedText ? `<div class="text-xs text-green-700 bg-green-50 px-2 py-1 rounded w-full text-right mb-1"><strong>תשובה מצופה למחוון:</strong> ${expectedText}</div>` : ''}
                     ${suggested !== null ? `<div class="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded w-full text-right mb-1"><i class="fas fa-robot ml-1"></i>הערכת מערכת: ${suggested} / ${max} נק'</div>` : ''}
                     <div class="flex items-center gap-2">
-                        <label class="text-sm font-bold text-gray-600">ציון מורה (${max} נק'):</label>
-                        <input type="number" min="0" max="${max}" class="q-score border border-gray-300 rounded px-2 py-1 w-16 text-center focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
+                        <label class="text-sm font-bold text-gray-600">ציון מורה (עד ${max} נק'):</label>
+                        <input type="number" step="any" min="0" max="${max}" class="q-score border border-gray-300 rounded px-2 py-1 w-20 text-center focus:ring focus:ring-blue-200" oninput="window.calcTotalScore()">
                     </div>
                 </div>
             `;
@@ -988,38 +1089,25 @@
                         <!-- Section 1 -->
                         <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                             <h3 class="text-xl font-bold bg-blue-100 p-3 rounded text-blue-900 mb-4 border-r-4 border-blue-600">פרק א' - הבנת הנקרא</h3>
+                            <div class="bg-yellow-50 text-yellow-800 p-3 rounded border border-yellow-200 text-sm mb-4">
+                                <i class="fas fa-info-circle ml-1"></i> <strong>הנחיה למורה:</strong> יש להעניק ציון ל-6 סעיפים בלבד (לפי בחירת התלמיד) – כל סעיף שווה עד 8.33 נקודות, סה"כ לפרק: 50 נקודות.
+                            </div>
                             <div class="grid grid-cols-1 gap-4 text-gray-800">
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>${scoreInputHtml(c1a, 10, 'הערים המודרניות יוצרות לעיתים אחידות חיצונית...')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>${scoreInputHtml(c1b, 10, 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות...')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 5, 'לדוגמה: הגבלת שעות הפעלת מכשירים רועשים.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 5, 'לדוגמה: מנגנון הפיקוח מסורבל והעונשים לא משמעותיים.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'הפעלה הדרגתית: תחילה אזהרה, אח"כ קנס, ולבסוף צעדים חמורים בהפרה חוזרת.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'גורם לרשויות לפעול בשקיפות ולפרסם מידע על הטיפול בתלונות.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'שאלה כיצד לדבר על הבעיות הופכת לחלק מהוויכוח; מציין שיש עמדות לכאן ולכאן ללא נקיטת עמדה חד משמעית.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>${scoreInputHtml(c4a, 10, 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה...')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'שייכת לה / שלה / של הרשות המקומית')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1a'] || 'לא נענה'}</div></div>${scoreInputHtml(c1a, 8.33, 'הערים המודרניות יוצרות לעיתים אחידות חיצונית...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>1. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['1b'] || 'לא נענה'}</div></div>${scoreInputHtml(c1b, 8.33, 'חיים בסביבה רועשת ומזוהמת, עם בעיות חוזרות...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 1):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a1'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'לדוגמה: הגבלת שעות הפעלת מכשירים רועשים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. א (תקנה 2):</strong> <div class="mt-2 text-blue-800 font-medium">${ans['2a2'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'לדוגמה: מנגנון הפיקוח מסורבל והעונשים לא משמעותיים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>2. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['2b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'הפעלה הדרגתית: תחילה אזהרה, אח"כ קנס, ולבסוף צעדים חמורים בהפרה חוזרת.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'גורם לרשויות לפעול בשקיפות ולפרסם מידע על הטיפול בתלונות.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>3. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['3b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'שאלה כיצד לדבר על הבעיות הופכת לחלק מהוויכוח; מציין שיש עמדות לכאן ולכאן ללא נקיטת עמדה חד משמעית.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. א:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4a'] || 'לא נענה'}</div></div>${scoreInputHtml(c4a, 8.33, 'לדון במתח שבין רצון לאיכות חיים לבין הסכנה של הסלמה...')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>4. ב:</strong> <div class="mt-2 text-blue-800 font-medium">${ans['4b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'שייכת לה / שלה / של הרשות המקומית')}</div>
                                 
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between">
-                                    <div>
-                                        <strong>5. פירוש מילים:</strong> 
-                                        <div class="mt-2 text-blue-800 font-medium grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div class="bg-blue-50 p-2 rounded border border-blue-100">
-                                                <span class="text-gray-600 text-sm">מילה 1:</span> ${ans['5w1']||'-'}<br>
-                                                <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m1']||'-'}<br>
-                                                <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s1']||'-'}
-                                            </div>
-                                            <div class="bg-blue-50 p-2 rounded border border-blue-100">
-                                                <span class="text-gray-600 text-sm">מילה 2:</span> ${ans['5w2']||'-'}<br>
-                                                <span class="text-gray-600 text-sm">פירוש:</span> ${ans['5m2']||'-'}<br>
-                                                <span class="text-gray-600 text-sm">משפט:</span> ${ans['5s2']||'-'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    ${scoreInputHtml(null, 10, 'לבדיקת המורה (2 מילים, פירוש נכון ומשפט הגיוני)')}
-                                </div>
-                                
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'התקנות מצמצמות פעילות רועשת. קנסות מרתיעים מפירים.')}</div>
-                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 10, 'מוביל לדיכאון, חוסר שינה, תחושת חוסר אונים ויאוש מתמשך.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>5. מילה 1:</strong> <span class="text-blue-800">${ans['5w1']||'-'}</span> (פירוש: ${ans['5m1']||'-'} | משפט: ${ans['5s1']||'-'})</div>${scoreInputHtml(null, 8.33, 'לבדיקת המורה: פירוש נכון ומשפט הגיוני')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>5. מילה 2:</strong> <span class="text-blue-800">${ans['5w2']||'-'}</span> (פירוש: ${ans['5m2']||'-'} | משפט: ${ans['5s2']||'-'})</div>${scoreInputHtml(null, 8.33, 'לבדיקת המורה: פירוש נכון ומשפט הגיוני')}</div>
+
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. א:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6a'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'התקנות מצמצמות פעילות רועשת. קנסות מרתיעים מפירים.')}</div>
+                                <div class="p-3 bg-gray-50 rounded border flex flex-col justify-between"><div><strong>6. ב:</strong> <div class="mt-2 text-blue-800 font-medium whitespace-pre-wrap">${ans['6b'] || 'לא נענה'}</div></div>${scoreInputHtml(null, 8.33, 'מוביל לדיכאון, חוסר שינה, תחושת חוסר אונים ויאוש מתמשך.')}</div>
                             </div>
                             
                             <!-- הערות מורה פרק א -->
@@ -1044,9 +1132,9 @@
                                 </div>
 
                                 <!-- Rubric System for Essay -->
-                                <div class="mt-6 bg-gray-100 border border-gray-300 rounded-lg p-4">
+                                <div class="mt-6 bg-gray-100 border border-gray-300 rounded-lg p-4 overflow-x-auto">
                                     <h4 class="font-bold text-gray-800 mb-3"><i class="fas fa-tasks ml-2"></i>מחוון בדיקת חיבור מפורט (מתוך 25 נק'):</h4>
-                                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 min-w-[600px]">
                                         <div><label class="block text-xs font-bold text-gray-600 mb-1">תוכן (35%)<br>עד 8.75 נק'</label><input type="number" step="0.25" max="8.75" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
                                         <div><label class="block text-xs font-bold text-gray-600 mb-1">פיתוח רעיון (30%)<br>עד 7.5 נק'</label><input type="number" step="0.25" max="7.5" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
                                         <div><label class="block text-xs font-bold text-gray-600 mb-1">מבנה (15%)<br>עד 3.75 נק'</label><input type="number" step="0.25" max="3.75" min="0" class="rubric-input w-full border rounded p-1 text-center" oninput="window.calcEssayScore()"></div>
@@ -1090,10 +1178,9 @@
                                     <div>
                                         <strong class="text-lg">9. שם העצם (טבלה):</strong>
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 1: <span class="text-blue-800 font-bold">${ans['9w1']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t1'])}</span></div>
-                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 2: <span class="text-blue-800 font-bold">${ans['9w2']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t2'])}</span></div>
-                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 3: <span class="text-blue-800 font-bold">${ans['9w3']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t3'])}</span></div>
-                                            <div class="bg-white p-2 rounded border shadow-sm">מילה 4: <span class="text-blue-800 font-bold">${ans['9w4']||'-'}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t4'])}</span></div>
+                                            ${q9WordsList.map((word, i) => `
+                                                <div class="bg-white p-2 rounded border shadow-sm">מילה ${i+1}: <span class="text-blue-800 font-bold">${word}</span> <i class="fas fa-arrow-left text-gray-400 mx-2"></i> סיווג: <span class="text-blue-800 font-bold bg-blue-50 px-2 rounded">${translateType(ans['9t'+(i+1)])}</span></div>
+                                            `).join('')}
                                         </div>
                                     </div>
                                     ${scoreInputHtml(null, 4, 'אזהרה/הסלמה/התעלמות: שורש ומשקל | רשמית/מנגנון: בסיס וצורן | פלטפורמות: שאילה מלעז')}
@@ -1149,6 +1236,30 @@
         // --- Interaction & Event Handlers ---
         // Attached to window to work correctly with dynamic imports
         
+        window.filterByClass = function(val) {
+            state.filterClass = val;
+            render();
+        };
+
+        window.deleteStudentExam = function(docId) {
+            window.showModal('האם אתה בטוח שברצונך למחוק בחינה זו? הפעולה בלתי הפיכה!', true, async () => {
+                if (window.firebaseLoaded && currentUser) {
+                    try {
+                        const studentDocRef = docRef(db, 'artifacts', appId, 'public', 'data', 'submissions', docId);
+                        await deleteDoc(studentDocRef);
+                    } catch(e) { console.error(e); }
+                }
+                // מחיקה מהגיבוי המקומי
+                let localSubmissions = JSON.parse(localStorage.getItem('local_submissions') || '[]');
+                localSubmissions = localSubmissions.filter(s => s.id !== docId && s.studentId !== docId);
+                localStorage.setItem('local_submissions', JSON.stringify(localSubmissions));
+                
+                // ריענון רשימה
+                studentsData = studentsData.filter(s => s.id !== docId && s.studentId !== docId);
+                render();
+            });
+        };
+
         window.calcEssayScore = function() {
             const inputs = document.querySelectorAll('.rubric-input');
             let total = 0;
@@ -1171,11 +1282,15 @@
                 const val = parseFloat(input.value);
                 if (!isNaN(val)) total += val;
             });
+            
+            // Round to 2 decimal places to handle float precision issues
+            total = Math.round(total * 100) / 100;
+            
             const calcScoreEl = document.getElementById('final_calc_score');
             if (calcScoreEl) calcScoreEl.value = total;
             
             const submitScoreEl = document.getElementById('final_submit_score');
-            if (submitScoreEl) submitScoreEl.value = total;
+            if (submitScoreEl) submitScoreEl.value = Math.round(total); // Suggest rounded final score
         };
 
         window.saveTeacherReview = async function(docId) {
